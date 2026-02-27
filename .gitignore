@@ -22,3 +22,6 @@ Thumbs.db
 
 # Docker
 .docker/
+
+.gemini/
+gha-creds-*.json
