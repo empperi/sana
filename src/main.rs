@@ -6,14 +6,18 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use futures::StreamExt;
-use std::env;
 use sana::state::AppState;
 use sana::ws;
 use sana::messages::ChatMessage;
+use sana::config::Config;
+use sana::db;
 use tower_http::services::ServeDir;
 
 #[tokio::main]
 async fn main() {
+    // Load .env if present
+    let _ = dotenvy::dotenv();
+
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -22,9 +26,16 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
+    let config = Config::new();
+
     // Connect to NATS
-    let nats_url = env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
-    let nats_client = async_nats::connect(&nats_url).await.unwrap();
+    let nats_client = async_nats::connect(&config.nats_url).await.unwrap();
+
+    // Connect to Database
+    let db_pool = db::connect(&config).await.expect("Failed to connect to database");
+    if db::check_connection(&db_pool).await.unwrap_or(false) {
+        tracing::info!("Successfully connected to database");
+    }
 
     let app_state = Arc::new(AppState::new(nats_client.clone()));
 

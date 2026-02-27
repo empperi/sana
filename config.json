@@ -1,0 +1,8 @@
+{
+  "nats_url": "nats://localhost:4222",
+  "postgres_user": "sana_user",
+  "postgres_password": "sana_password",
+  "postgres_host": "localhost",
+  "postgres_port": "5432",
+  "postgres_db": "sana_db"
+}

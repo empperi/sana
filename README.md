@@ -30,10 +30,10 @@ docker-compose up -d nats
 The backend is an Axum server located in the root directory.
 
 ```bash
-cargo run
+cargo run -- config.json
 ```
 
-By default, the server runs on `http://localhost:3000`.
+By default, the server runs on `http://localhost:3000`. You can use `config.json` to customize local development settings (NATS URL, Database credentials, etc.). Environment variables will always take precedence over the configuration file.
 
 ### Running the Frontend (Watch Mode)
 
