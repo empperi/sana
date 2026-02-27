@@ -14,7 +14,7 @@ impl AppState {
     pub fn new(nats_client: Client) -> Self {
         let mut channels = HashMap::new();
         let (tx, _rx) = broadcast::channel(100);
-        channels.insert("test-channel".to_string(), tx);
+        channels.insert("General".to_string(), tx);
 
         Self {
             channels: Mutex::new(channels),

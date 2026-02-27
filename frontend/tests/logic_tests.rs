@@ -4,8 +4,8 @@ use frontend::types::ChatMessage;
 #[test]
 fn test_initial_state() {
     let state = ChatState::new();
-    assert_eq!(state.channels, vec!["test-channel".to_string()]);
-    assert_eq!(state.current_channel, "test-channel");
+    assert_eq!(state.channels, vec!["General".to_string()]);
+    assert_eq!(state.current_channel, "General");
 }
 
 #[test]
@@ -19,9 +19,9 @@ fn test_handle_message_current_channel() {
         pending: false,
     };
     
-    state.handle_message("test-channel".to_string(), msg.clone());
+    state.handle_message("General".to_string(), msg.clone());
     
-    assert_eq!(state.messages.get("test-channel").unwrap()[0], msg);
+    assert_eq!(state.messages.get("General").unwrap()[0], msg);
     assert!(state.unread_channels.is_empty());
 }
 
@@ -45,8 +45,8 @@ fn test_handle_message_other_channel() {
 #[test]
 fn test_switch_channel_clears_unread() {
     let mut state = ChatState::new();
-    state.unread_channels.insert("test-channel".to_string());
-    state.switch_channel("test-channel".to_string());
+    state.unread_channels.insert("General".to_string());
+    state.switch_channel("General".to_string());
     assert!(state.unread_channels.is_empty());
 }
 
@@ -67,7 +67,7 @@ fn test_pending_message_replacement() {
         message: "hi".to_string(),
         pending: true,
     };
-    state.add_pending_message("test-channel".to_string(), pending);
+    state.add_pending_message("General".to_string(), pending);
     
     let confirmed = ChatMessage {
         id: "1".to_string(),
@@ -76,9 +76,9 @@ fn test_pending_message_replacement() {
         message: "hi".to_string(),
         pending: false,
     };
-    state.handle_message("test-channel".to_string(), confirmed.clone());
+    state.handle_message("General".to_string(), confirmed.clone());
     
-    let msgs = state.messages.get("test-channel").unwrap();
+    let msgs = state.messages.get("General").unwrap();
     assert_eq!(msgs.len(), 1);
     assert_eq!(msgs[0], confirmed);
 }

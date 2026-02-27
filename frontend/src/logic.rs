@@ -15,8 +15,8 @@ pub struct ChatState {
 impl ChatState {
     pub fn new() -> Self {
         Self {
-            channels: vec!["test-channel".to_string()],
-            current_channel: "test-channel".to_string(),
+            channels: vec!["General".to_string()],
+            current_channel: "General".to_string(),
             username: String::new(),
             messages: HashMap::new(),
             unread_channels: HashSet::new(),
