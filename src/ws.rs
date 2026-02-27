@@ -46,7 +46,7 @@ pub fn decide(command: StompCommand, user_id: &str, username: &str) -> WsAction 
                     .find(|(k, _)| k == "message_id")
                     .map(|(_, v)| v.clone());
 
-                WsAction::PublishToNats(format!("topic.{}", channel_name), body, message_id)
+                WsAction::PublishToNats(format!("topic.{}", crate::nats_util::encode(channel_name)), body, message_id)
             } else {
                 WsAction::None
             }
@@ -154,7 +154,7 @@ async fn handle_subscribe(channel_name: String, state: &Arc<AppState>, tx_intern
         if is_new && channel_name != "system.channels" {
             tracing::info!("Publishing new channel to NATS: {}", channel_name);
             let nats_client = state.nats_client.clone();
-            let name = channel_name.clone();
+            let name = crate::nats_util::encode(&channel_name);
             tokio::spawn(async move {
                 let _ = nats_client.publish("topic.system.channels", Bytes::from(name)).await;
             });

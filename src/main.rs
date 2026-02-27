@@ -36,16 +36,34 @@ async fn main() {
         let mut subscriber = nats_client_clone.subscribe("topic.>").await.unwrap();
         while let Some(message) = subscriber.next().await {
             let subject = message.subject.to_string();
-            if let Some(channel_name) = subject.strip_prefix("topic.") {
+            if let Some(encoded_channel_name) = subject.strip_prefix("topic.") {
+                let channel_name = match sana::nats_util::decode(encoded_channel_name) {
+                    Some(name) => name,
+                    None => {
+                        // Compatibility for non-encoded subjects (like system.channels if we decide so)
+                        // but actually we decided to encode everything.
+                        // Let's try to see if it's "system.channels" directly or encoded.
+                        if encoded_channel_name == "system.channels" {
+                            encoded_channel_name.to_string()
+                        } else {
+                            continue;
+                        }
+                    }
+                };
+
                 let payload = String::from_utf8_lossy(&message.payload).to_string();
                 tracing::debug!("Received from NATS on {}: {}", channel_name, payload);
 
                 if channel_name == "system.channels" {
-                    tracing::info!("NATS: Received new channel notification: {}", payload);
+                    let payload_channel_name = match sana::nats_util::decode(&payload) {
+                        Some(name) => name,
+                        None => payload, // Fallback
+                    };
+                    tracing::info!("NATS: Received new channel notification: {}", payload_channel_name);
                     // System message: just broadcast the channel name to system subscribers
                     let channels = state_clone.channels.lock().unwrap();
-                    if let Some(tx) = channels.get(channel_name) {
-                        let _ = tx.send(payload);
+                    if let Some(tx) = channels.get("system.channels") {
+                        let _ = tx.send(payload_channel_name);
                     } else {
                         tracing::warn!("NATS: No local subscribers for system.channels");
                     }
@@ -54,11 +72,11 @@ async fn main() {
 
                 // Store message in memory and only broadcast if successfully stored/parsed
                 if let Ok(chat_msg) = serde_json::from_str::<ChatMessage>(&payload) {
-                    state_clone.message_store.add_message(channel_name, chat_msg);
+                    state_clone.message_store.add_message(&channel_name, chat_msg);
 
                     // Broadcast to local websocket subscribers
                     let channels = state_clone.channels.lock().unwrap();
-                    if let Some(tx) = channels.get(channel_name) {
+                    if let Some(tx) = channels.get(&channel_name) {
                         let _ = tx.send(payload);
                     }
                 } else {

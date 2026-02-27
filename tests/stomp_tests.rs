@@ -84,3 +84,35 @@ fn test_parse_incomplete_subscribe() {
         \0"};
     assert_eq!(parse(msg), StompCommand::Unknown);
 }
+
+#[test]
+fn test_parse_subscribe_with_spaces() {
+    let msg = indoc! {"
+        SUBSCRIBE
+        destination:/topic/My Channel
+
+        \0"};
+    assert_eq!(
+        parse(msg),
+        StompCommand::Subscribe {
+            destination: "/topic/My Channel".to_string()
+        }
+    );
+}
+
+#[test]
+fn test_parse_send_with_spaces() {
+    let msg = indoc! {"
+        SEND
+        destination:/topic/My Channel
+
+        hello world\0"};
+    assert_eq!(
+        parse(msg),
+        StompCommand::Send {
+            destination: "/topic/My Channel".to_string(),
+            body: "hello world".to_string(),
+            headers: vec![]
+        }
+    );
+}

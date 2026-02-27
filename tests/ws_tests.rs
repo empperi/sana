@@ -30,14 +30,14 @@ fn test_decide_subscribe_invalid() {
 #[test]
 fn test_decide_send() {
     let action = decide(StompCommand::Send { destination: "/topic/foo".to_string(), body: "bar".to_string(), headers: vec![] }, "1234", "User1234");
-    assert_eq!(action, WsAction::PublishToNats("topic.foo".to_string(), "bar".to_string(), None));
+    assert_eq!(action, WsAction::PublishToNats("topic.666f6f".to_string(), "bar".to_string(), None));
 }
 
 #[test]
 fn test_decide_send_with_message_id() {
     let headers = vec![("message_id".to_string(), "123-456".to_string())];
     let action = decide(StompCommand::Send { destination: "/topic/foo".to_string(), body: "bar".to_string(), headers }, "1234", "User1234");
-    assert_eq!(action, WsAction::PublishToNats("topic.foo".to_string(), "bar".to_string(), Some("123-456".to_string())));
+    assert_eq!(action, WsAction::PublishToNats("topic.666f6f".to_string(), "bar".to_string(), Some("123-456".to_string())));
 }
 
 #[test]
