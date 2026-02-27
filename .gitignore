@@ -1,0 +1,24 @@
+# Rust
+/target/
+/frontend/target/
+Cargo.lock
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend
+/frontend/dist/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Docker
+.docker/
