@@ -33,8 +33,10 @@ async fn main() {
 
     // Connect to Database
     let db_pool = db::connect(&config).await.expect("Failed to connect to database");
+    db::run_migrations(&db_pool).await.expect("Failed to run database migrations");
+    
     if db::check_connection(&db_pool).await.unwrap_or(false) {
-        tracing::info!("Successfully connected to database");
+        tracing::info!("Successfully connected to database and ran migrations");
     }
 
     let app_state = Arc::new(AppState::new(nats_client.clone()));

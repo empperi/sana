@@ -8,6 +8,12 @@ pub async fn connect(config: &Config) -> Result<PgPool, sqlx::Error> {
         .await
 }
 
+pub async fn run_migrations(pool: &PgPool) -> Result<(), sqlx::migrate::MigrateError> {
+    sqlx::migrate!("./migrations")
+        .run(pool)
+        .await
+}
+
 pub async fn check_connection(pool: &PgPool) -> Result<bool, sqlx::Error> {
     let result: (bool,) = sqlx::query_as("SELECT 1=1")
         .fetch_one(pool)

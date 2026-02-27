@@ -14,6 +14,7 @@
 3. Use TDD and implement tests for everything
 4. With tests prefer unit tests over integration tests
 5. With Rust unit tests, create those into separate test files, do not write them into actual implementation file as mod
-6. Do not try to test private functions, use pure functions and functional style instead so testing public functions
+6. With tests always write tests first in the file and fixtures and helper functions after the tests
+7. Do not try to test private functions, use pure functions and functional style instead so testing public functions
    makes testing easy without excessive state setup
-7. Keep lines at maximum of 120 characters unless it would make code less readable to split a line
+8. Keep lines at maximum of 120 characters unless it would make code less readable to split a line
