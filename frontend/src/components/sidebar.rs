@@ -1,11 +1,13 @@
 use yew::prelude::*;
 use std::collections::HashSet;
+use crate::services::websocket::ConnectionStatus;
 
 #[derive(Properties, PartialEq)]
 pub struct SidebarProps {
     pub channels: Vec<String>,
     pub current_channel: String,
     pub unread_channels: HashSet<String>,
+    pub connection_status: ConnectionStatus,
     pub on_switch_channel: Callback<String>,
     pub on_create_channel: Callback<String>,
 }
@@ -13,6 +15,18 @@ pub struct SidebarProps {
 #[function_component(Sidebar)]
 pub fn sidebar(props: &SidebarProps) -> Html {
     let new_channel_input = use_state(String::new);
+
+    let status_class = match props.connection_status {
+        ConnectionStatus::Connected => "status-connected",
+        ConnectionStatus::Disconnected => "status-disconnected",
+        ConnectionStatus::Reconnecting => "status-reconnecting",
+    };
+
+    let status_text = match props.connection_status {
+        ConnectionStatus::Connected => "Connected",
+        ConnectionStatus::Disconnected => "Offline",
+        ConnectionStatus::Reconnecting => "Connecting...",
+    };
 
     let on_channel_input = {
         let new_channel_input = new_channel_input.clone();
@@ -38,7 +52,16 @@ pub fn sidebar(props: &SidebarProps) -> Html {
 
     html! {
         <div class="sidebar">
-            <h2>{ "Channels" }</h2>
+            <div class="sidebar-header">
+                <img src="/assets/Sana_logo.webp" alt="Sana Logo" class="logo" />
+                <div class="header-content">
+                    <h2>{ "Sana" }</h2>
+                    <div class={classes!("connection-status", status_class)}>
+                        <span class="indicator"></span>
+                        { status_text }
+                    </div>
+                </div>
+            </div>
             <ul class="channel-list">
                 { for props.channels.iter().map(|channel| {
                     let channel_name = channel.clone();

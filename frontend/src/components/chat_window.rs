@@ -1,7 +1,9 @@
 use yew::prelude::*;
 use crate::types::ChatMessage;
 use chrono::{DateTime, Local, TimeZone, Utc};
-use web_sys::HtmlElement;
+use web_sys::{HtmlElement, HtmlInputElement};
+use gloo_events::EventListener;
+use wasm_bindgen::JsCast;
 
 #[derive(Properties, PartialEq)]
 pub struct ChatWindowProps {
@@ -15,8 +17,49 @@ pub struct ChatWindowProps {
 pub fn chat_window(props: &ChatWindowProps) -> Html {
     let input_value = use_state(String::new);
     let chat_container_ref = use_node_ref();
+    let input_ref = use_node_ref();
     let show_new_messages_notification = use_state(|| false);
     let is_user_scrolled_up = use_state(|| false);
+
+    // Effect to redirect global typing to the message input
+    {
+        let input_ref = input_ref.clone();
+        use_effect_with((), move |_| {
+            let document = web_sys::window().unwrap().document().unwrap();
+            let listener = EventListener::new(&document, "keydown", move |event| {
+                let event = event.dyn_ref::<web_sys::KeyboardEvent>().unwrap();
+                
+                // Don't intercept if user is using a modifier key (Cmd, Ctrl, Alt)
+                if event.meta_key() || event.ctrl_key() || event.alt_key() {
+                    return;
+                }
+
+                // Check if the key is a single character (printable)
+                if event.key().chars().count() == 1 {
+                    let active_element = web_sys::window()
+                        .unwrap()
+                        .document()
+                        .unwrap()
+                        .active_element();
+
+                    if let Some(active) = active_element {
+                        let tag_name = active.tag_name().to_uppercase();
+                        if tag_name == "INPUT" || tag_name == "TEXTAREA" {
+                            // Already focusing an input
+                            return;
+                        }
+                    }
+
+                    // Not focusing an input, redirect to message input
+                    if let Some(input) = input_ref.cast::<HtmlInputElement>() {
+                        input.focus().unwrap();
+                    }
+                }
+            });
+
+            move || drop(listener)
+        });
+    }
 
     // Effect to handle scrolling when messages change
     {
@@ -104,7 +147,9 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
 
     html! {
         <div class="chat-container">
-            <h1>{ format!("# {}", props.current_channel) }</h1>
+            <header>
+                <h1>{ format!("# {}", props.current_channel) }</h1>
+            </header>
             <div class="chat-history" ref={chat_container_ref} onscroll={on_scroll}>
                 { for props.messages.iter().map(|msg| {
                     let time = Utc.timestamp_millis_opt(msg.timestamp).unwrap();
@@ -133,15 +178,18 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                     { "New messages ↓" }
                 </div>
             }
-            <form onsubmit={on_submit}>
-                <input
-                    type="text"
-                    value={(*input_value).clone()}
-                    oninput={on_input}
-                    placeholder={format!("Message #{}", props.current_channel)}
-                />
-                <button type="submit">{ "Send" }</button>
-            </form>
+            <footer>
+                <form onsubmit={on_submit}>
+                    <input
+                        type="text"
+                        ref={input_ref}
+                        value={(*input_value).clone()}
+                        oninput={on_input}
+                        placeholder={format!("Message #{}", props.current_channel)}
+                    />
+                    <button type="submit" disabled={input_value.is_empty()}>{ "Send" }</button>
+                </form>
+            </footer>
         </div>
     }
 }

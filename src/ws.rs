@@ -81,6 +81,8 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
         }
     });
 
+    let mut active_subscriptions = std::collections::HashSet::new();
+
     while let Some(msg) = receiver.next().await {
         if let Ok(msg) = msg {
             match msg {
@@ -93,7 +95,11 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                             let _ = tx_internal.send(response).await;
                         }
                         WsAction::Subscribe(channel_name) => {
-                            handle_subscribe(channel_name, &state, &tx_internal).await;
+                            if active_subscriptions.insert(channel_name.clone()) {
+                                handle_subscribe(channel_name, &state, &tx_internal).await;
+                            } else {
+                                tracing::debug!("Already subscribed to channel: {}", channel_name);
+                            }
                         }
                         WsAction::PublishToNats(subject, body, message_id) => {
                              process_and_publish_message(subject, body, message_id, &username, &state).await;
@@ -117,16 +123,43 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 }
 
 async fn handle_subscribe(channel_name: String, state: &Arc<AppState>, tx_internal: &tokio::sync::mpsc::Sender<String>) {
-    tracing::debug!("Subscribing to channel: {}", channel_name);
+    tracing::info!("Subscribing to channel: {}", channel_name);
+
+    if channel_name == "system.channels" {
+        let channels_list: Vec<String> = {
+            let channels = state.channels.lock().unwrap();
+            channels.keys().cloned().collect()
+        };
+        tracing::info!("Sending initial channels list: {:?}", channels_list);
+        for name in channels_list {
+            if name != "system.channels" {
+                let stomp_msg = format!("MESSAGE\ndestination:/topic/system.channels\n\n{}\0", name);
+                let _ = tx_internal.send(stomp_msg).await;
+            }
+        }
+    }
 
     let tx = {
         let mut channels = state.channels.lock().unwrap();
-        channels.entry(channel_name.clone())
+        let is_new = !channels.contains_key(&channel_name);
+        
+        let tx = channels.entry(channel_name.clone())
             .or_insert_with(|| {
+                tracing::info!("Creating new broadcast channel for: {}", channel_name);
                 let (tx, _rx) = tokio::sync::broadcast::channel(100);
                 tx
             })
-            .clone()
+            .clone();
+
+        if is_new && channel_name != "system.channels" {
+            tracing::info!("Publishing new channel to NATS: {}", channel_name);
+            let nats_client = state.nats_client.clone();
+            let name = channel_name.clone();
+            tokio::spawn(async move {
+                let _ = nats_client.publish("topic.system.channels", Bytes::from(name)).await;
+            });
+        }
+        tx
     };
 
     let mut rx = tx.subscribe();

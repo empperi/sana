@@ -40,6 +40,18 @@ async fn main() {
                 let payload = String::from_utf8_lossy(&message.payload).to_string();
                 tracing::debug!("Received from NATS on {}: {}", channel_name, payload);
 
+                if channel_name == "system.channels" {
+                    tracing::info!("NATS: Received new channel notification: {}", payload);
+                    // System message: just broadcast the channel name to system subscribers
+                    let channels = state_clone.channels.lock().unwrap();
+                    if let Some(tx) = channels.get(channel_name) {
+                        let _ = tx.send(payload);
+                    } else {
+                        tracing::warn!("NATS: No local subscribers for system.channels");
+                    }
+                    continue;
+                }
+
                 // Store message in memory and only broadcast if successfully stored/parsed
                 if let Ok(chat_msg) = serde_json::from_str::<ChatMessage>(&payload) {
                     state_clone.message_store.add_message(channel_name, chat_msg);

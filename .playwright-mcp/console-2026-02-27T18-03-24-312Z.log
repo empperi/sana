@@ -1,0 +1,45 @@
+[      11ms] [WARNING] The `integrity` attribute is currently ignored for preload destinations that do not support subresource integrity. See https://crbug.com/981419 for more information @ http://localhost:3000/:7
+[   41414ms] [ERROR] WebSocket connection to 'ws://localhost:3000/ws' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:262
+[   41414ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   41414ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   45762ms] [ERROR] WebSocket connection to 'ws://localhost:3000/ws' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:262
+[   45763ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   45763ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   50114ms] [ERROR] WebSocket connection to 'ws://localhost:3000/ws' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:262
+[   50114ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   50114ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   54486ms] [ERROR] WebSocket connection to 'ws://localhost:3000/ws' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:262
+[   54486ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   58840ms] [ERROR] WebSocket connection to 'ws://localhost:3000/ws' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:262
+[   58840ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   63171ms] [ERROR] WebSocket connection to 'ws://localhost:3000/ws' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:262
+[   63171ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   67517ms] [ERROR] WebSocket connection to 'ws://localhost:3000/ws' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:262
+[   67517ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   67517ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   67517ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   71890ms] [ERROR] WebSocket connection to 'ws://localhost:3000/ws' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:262
+[   71890ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   76210ms] [ERROR] WebSocket connection to 'ws://localhost:3000/ws' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:262
+[   76210ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   80570ms] [ERROR] WebSocket connection to 'ws://localhost:3000/ws' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:262
+[   80571ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   80571ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   80571ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   80571ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   80571ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   80571ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   84909ms] [ERROR] WebSocket connection to 'ws://localhost:3000/ws' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:262
+[   84909ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   89226ms] [ERROR] WebSocket connection to 'ws://localhost:3000/ws' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:262
+[   89226ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   89226ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   89226ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   93573ms] [ERROR] WebSocket connection to 'ws://localhost:3000/ws' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:262
+[   93574ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   93574ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   93574ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   97902ms] [ERROR] WebSocket connection to 'ws://localhost:3000/ws' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:262
+[   97902ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   97902ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
+[   97902ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3000/frontend-8c6a5768d7d13ded.js:356
