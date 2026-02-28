@@ -65,6 +65,16 @@ trunk serve
 
 Trunk will serve the frontend at `http://localhost:8080`. Navigating to `http://localhost:8080` will display the web interface and interact seamlessly with the running backend.
 
+### Full Distributed Stack (Docker)
+
+To run the complete system with a load balancer, multiple backend replicas, NATS, and PostgreSQL:
+
+```bash
+docker-compose up --build -d
+```
+
+Access the application at `http://localhost:8080`. The load balancer (NGINX) will distribute traffic across backend instances.
+
 ## Agentic Development
 
 This project is optimized for agentic development. Please refer to the following files for guidance:

@@ -22,9 +22,18 @@ impl Config {
             .and_then(|path| fs::read_to_string(path).ok())
             .and_then(|content| serde_json::from_str::<Value>(&content).ok());
 
+        let nats_url = Self::get_value("nats_url", "nats://localhost:4222", &config_file);
+        
+        // Prioritize a direct DATABASE_URL environment variable
+        let database_url = if let Ok(url) = env::var("DATABASE_URL") {
+            url
+        } else {
+            Self::init_database_url(&config_file)
+        };
+
         Self {
-            nats_url: Self::init_nats_url(&config_file),
-            database_url: Self::init_database_url(&config_file),
+            nats_url,
+            database_url,
         }
     }
 

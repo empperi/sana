@@ -26,6 +26,7 @@ RUN rm -rf frontend/src
 
 # Copy your actual source code
 COPY ./src ./src
+COPY ./migrations ./migrations
 COPY ./frontend ./frontend
 
 # Build the backend

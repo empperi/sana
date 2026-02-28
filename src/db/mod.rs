@@ -2,6 +2,7 @@ use sqlx::postgres::{PgPool, PgPoolOptions};
 use crate::config::Config;
 
 pub mod users;
+pub mod messages;
 
 pub async fn connect(config: &Config) -> Result<PgPool, sqlx::Error> {
     PgPoolOptions::new()

@@ -19,8 +19,12 @@ impl WebSocketService {
         let (tx, mut rx) = futures::channel::mpsc::channel::<String>(10);
 
         spawn_local(async move {
-            let ws_url = "ws://localhost:3000/ws";
-            let ws = WebSocket::open(ws_url).unwrap();
+            let window = web_sys::window().unwrap();
+            let location = window.location();
+            let protocol = if location.protocol().unwrap() == "https:" { "wss:" } else { "ws:" };
+            let host = location.host().unwrap();
+            let ws_url = format!("{}//{}/ws", protocol, host);
+            let ws = WebSocket::open(&ws_url).unwrap();
             let (mut write, read) = ws.split();
             let mut read = read.fuse();
 

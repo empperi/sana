@@ -1,7 +1,10 @@
 use sana::config::Config;
-use sana::db::{self, users};
+use sana::db::{self, users, messages};
 use std::env;
 use sqlx::{Connection, PgConnection, PgPool};
+use sana::messages::ChatMessage;
+use chrono::Utc;
+use uuid::Uuid;
 
 struct TestContext {
     pub pool: PgPool,
@@ -97,5 +100,37 @@ async fn test_user_crud() {
     let deleted_user = users::get_user_by_id(&mut tx, user.user_id).await.expect("Failed to get user");
     assert!(deleted_user.is_none());
     
+    tx.commit().await.expect("Failed to commit transaction");
+}
+
+#[tokio::test]
+async fn test_message_insertion() {
+    let ctx = TestContext::new("sana_test_db_messages").await;
+    let pool = &ctx.pool;
+
+    let mut tx = pool.begin().await.expect("Failed to start transaction");
+
+    let msg = ChatMessage {
+        id: Uuid::new_v4().to_string(),
+        user: "testuser".to_string(),
+        timestamp: Utc::now().timestamp_millis(),
+        message: "Hello world".to_string(),
+        seq: Some(10),
+    };
+
+    // Insert
+    messages::insert_message(&mut tx, "General", 10, &msg).await.expect("Failed to insert message");
+
+    // Insert same ID should do nothing (idempotency)
+    messages::insert_message(&mut tx, "General", 10, &msg).await.expect("Failed to insert same message again");
+
+    // Check if inserted
+    let count: (i64,) = sqlx::query_as("SELECT count(*) FROM messages")
+        .fetch_one(&mut *tx)
+        .await
+        .expect("Failed to count messages");
+    
+    assert_eq!(count.0, 1);
+
     tx.commit().await.expect("Failed to commit transaction");
 }

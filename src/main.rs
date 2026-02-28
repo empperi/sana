@@ -45,7 +45,20 @@ async fn main() {
     let _ = jetstream.get_or_create_stream(stream_config).await.unwrap();
 
     // Connect to Database
-    let db_pool = db::connect(&config).await.expect("Failed to connect to database");
+    let mut db_pool = None;
+    for i in 0..10 {
+        match db::connect(&config).await {
+            Ok(pool) => {
+                db_pool = Some(pool);
+                break;
+            }
+            Err(e) => {
+                tracing::warn!("Failed to connect to database (attempt {}): {}. Retrying in 2s...", i + 1, e);
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            }
+        }
+    }
+    let db_pool = db_pool.expect("Failed to connect to database after retries");
     db::run_migrations(&db_pool).await.expect("Failed to run database migrations");
     
     if db::check_connection(&db_pool).await.unwrap_or(false) {
@@ -55,10 +68,12 @@ async fn main() {
     let cookie_key = match env::var("COOKIE_KEY") {
         Ok(key) => {
             if let Ok(bytes) = hex::decode(&key) {
-                Key::try_from(&bytes[..]).unwrap_or_else(|_| {
-                    tracing::warn!("Invalid COOKIE_KEY length, generating new one");
+                if bytes.len() < 64 {
+                    tracing::warn!("COOKIE_KEY length is {} bytes, but at least 64 bytes are required. Generating new one", bytes.len());
                     Key::generate()
-                })
+                } else {
+                    Key::from(&bytes)
+                }
             } else {
                 tracing::warn!("Invalid COOKIE_KEY hex, generating new one");
                 Key::generate()
@@ -75,6 +90,7 @@ async fn main() {
 
     // Start background tasks
     nats::start_nats_subscriber(app_state.clone()).await;
+    nats::start_postgres_archiver(app_state.clone()).await;
 
     let cors = CorsLayer::new()
         .allow_origin("http://localhost:8080".parse::<HeaderValue>().unwrap())
