@@ -8,4 +8,5 @@ pub struct ChatMessage {
     pub message: String,
     #[serde(default)]
     pub pending: bool,
+    pub seq: Option<u64>,
 }

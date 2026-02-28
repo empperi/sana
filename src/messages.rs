@@ -8,6 +8,7 @@ pub struct ChatMessage {
     pub user: String,
     pub timestamp: i64,
     pub message: String,
+    pub seq: Option<u64>,
 }
 
 pub struct MessageStore {
@@ -35,5 +36,17 @@ impl MessageStore {
     pub fn get_messages(&self, channel: &str) -> Vec<ChatMessage> {
         let store = self.messages.lock().unwrap();
         store.get(channel).cloned().unwrap_or_default()
+    }
+
+    pub fn get_messages_after(&self, channel: &str, last_id: &str) -> Vec<ChatMessage> {
+        let store = self.messages.lock().unwrap();
+        if let Some(msgs) = store.get(channel) {
+            if let Some(pos) = msgs.iter().position(|m| m.id == last_id) {
+                return msgs[pos + 1..].to_vec();
+            }
+            // If ID not found, return all (might be safer if history is short)
+            return msgs.clone();
+        }
+        Vec::new()
     }
 }

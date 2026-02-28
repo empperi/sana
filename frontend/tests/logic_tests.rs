@@ -17,6 +17,7 @@ fn test_handle_message_current_channel() {
         timestamp: 100,
         message: "hi".to_string(),
         pending: false,
+        seq: None,
     };
     
     state.handle_message("General".to_string(), msg.clone());
@@ -35,6 +36,7 @@ fn test_handle_message_other_channel() {
         timestamp: 100,
         message: "hi".to_string(),
         pending: false,
+        seq: None,
     };
     
     state.handle_message("other".to_string(), msg);
@@ -58,27 +60,32 @@ fn test_handle_system_message_adds_channel() {
 }
 
 #[test]
-fn test_pending_message_replacement() {
+fn test_pending_message_replacement_different_user_id() {
     let mut state = ChatState::new();
     let pending = ChatMessage {
         id: "1".to_string(),
-        user: "Alice".to_string(),
+        user: "User9999".to_string(),
         timestamp: 100,
         message: "hi".to_string(),
         pending: true,
+        seq: None,
     };
     state.add_pending_message("General".to_string(), pending);
     
+    // On reconnect, we might get a different user_id
     let confirmed = ChatMessage {
         id: "1".to_string(),
-        user: "Alice".to_string(),
+        user: "User1111".to_string(),
         timestamp: 105,
         message: "hi".to_string(),
         pending: false,
+        seq: None,
     };
     state.handle_message("General".to_string(), confirmed.clone());
     
     let msgs = state.messages.get("General").unwrap();
     assert_eq!(msgs.len(), 1);
     assert_eq!(msgs[0], confirmed);
+    assert!(!msgs[0].pending);
+    assert_eq!(msgs[0].user, "User1111");
 }

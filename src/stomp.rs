@@ -1,7 +1,12 @@
 #[derive(Debug, PartialEq)]
 pub enum StompCommand {
     Connect,
-    Subscribe { destination: String },
+    Subscribe { 
+        destination: String, 
+        last_seen_id: Option<String>, 
+        last_seen_seq: Option<u64>,
+        headers: Vec<(String, String)> 
+    },
     Send { destination: String, body: String, headers: Vec<(String, String)> },
     Unknown,
 }
@@ -17,13 +22,30 @@ pub fn parse(text: &str) -> StompCommand {
         "CONNECT" | "STOMP" => StompCommand::Connect,
         "SUBSCRIBE" => {
             let mut destination = String::new();
+            let mut last_seen_id = None;
+            let mut last_seen_seq = None;
+            let mut headers = Vec::new();
             for line in lines {
-                if line.starts_with("destination:") {
-                    destination = line.strip_prefix("destination:").unwrap().trim().to_string();
+                if line.is_empty() { break; }
+                if let Some((key, value)) = line.split_once(':') {
+                    let k = key.trim();
+                    let v = value.trim();
+                    if k == "destination" {
+                        destination = v.to_string();
+                    } else if k == "last_seen_id" {
+                        last_seen_id = Some(v.to_string());
+                    } else if k == "last_seen_seq" {
+                        if v.is_empty() {
+                            last_seen_seq = None;
+                        } else {
+                            last_seen_seq = v.parse::<u64>().ok();
+                        }
+                    }
+                    headers.push((k.to_string(), v.to_string()));
                 }
             }
             if !destination.is_empty() {
-                StompCommand::Subscribe { destination }
+                StompCommand::Subscribe { destination, last_seen_id, last_seen_seq, headers }
             } else {
                 StompCommand::Unknown
             }
@@ -32,20 +54,23 @@ pub fn parse(text: &str) -> StompCommand {
             let mut destination = String::new();
             let mut body = String::new();
             let mut headers = Vec::new();
-            let mut body_start = false;
+            let mut lines_iter = lines.peekable();
 
-            for line in lines {
-                if body_start {
-                    body = line.trim_end_matches('\0').to_string();
+            while let Some(line) = lines_iter.next() {
+                if line.is_empty() {
+                    // Body starts after the first empty line
+                    if let Some(next_line) = lines_iter.next() {
+                        body = next_line.trim_end_matches('\0').to_string();
+                    }
                     break;
                 }
-
-                if line.starts_with("destination:") {
-                    destination = line.strip_prefix("destination:").unwrap().trim().to_string();
-                } else if line.is_empty() {
-                    body_start = true;
-                } else if let Some((key, value)) = line.split_once(':') {
-                    headers.push((key.trim().to_string(), value.trim().to_string()));
+                if let Some((key, value)) = line.split_once(':') {
+                    let k = key.trim();
+                    let v = value.trim();
+                    if k == "destination" {
+                        destination = v.to_string();
+                    }
+                    headers.push((k.to_string(), v.to_string()));
                 }
             }
 

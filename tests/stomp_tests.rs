@@ -29,7 +29,10 @@ fn test_parse_subscribe() {
     assert_eq!(
         parse(msg),
         StompCommand::Subscribe {
-            destination: "/topic/foo".to_string()
+            destination: "/topic/foo".to_string(),
+            last_seen_id: None,
+            last_seen_seq: None,
+            headers: vec![("id".to_string(), "0".to_string()), ("destination".to_string(), "/topic/foo".to_string())]
         }
     );
 }
@@ -46,7 +49,7 @@ fn test_parse_send() {
         StompCommand::Send {
             destination: "/topic/foo".to_string(),
             body: "hello world".to_string(),
-            headers: vec![]
+            headers: vec![("destination".to_string(), "/topic/foo".to_string())]
         }
     );
 }
@@ -64,7 +67,10 @@ fn test_parse_send_with_headers() {
         StompCommand::Send {
             destination: "/topic/foo".to_string(),
             body: "hello world".to_string(),
-            headers: vec![("message_id".to_string(), "12345".to_string())]
+            headers: vec![
+                ("destination".to_string(), "/topic/foo".to_string()),
+                ("message_id".to_string(), "12345".to_string())
+            ]
         }
     );
 }
@@ -95,7 +101,10 @@ fn test_parse_subscribe_with_spaces() {
     assert_eq!(
         parse(msg),
         StompCommand::Subscribe {
-            destination: "/topic/My Channel".to_string()
+            destination: "/topic/My Channel".to_string(),
+            last_seen_id: None,
+            last_seen_seq: None,
+            headers: vec![("destination".to_string(), "/topic/My Channel".to_string())]
         }
     );
 }
@@ -112,7 +121,7 @@ fn test_parse_send_with_spaces() {
         StompCommand::Send {
             destination: "/topic/My Channel".to_string(),
             body: "hello world".to_string(),
-            headers: vec![]
+            headers: vec![("destination".to_string(), "/topic/My Channel".to_string())]
         }
     );
 }

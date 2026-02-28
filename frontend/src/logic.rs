@@ -27,10 +27,12 @@ impl ChatState {
     pub fn handle_message(&mut self, channel: String, msg: ChatMessage) {
         let messages = self.messages.entry(channel.clone()).or_insert_with(Vec::new);
         
-        // Update pending message or add new one
+        // Update pending message or add new one.
+        // We only check by ID for pending messages, because user_id might change on reconnect.
         if let Some(pos) = messages.iter().position(|m| m.id == msg.id && m.pending) {
             messages[pos] = msg;
-        } else {
+        } else if !messages.iter().any(|m| m.id == msg.id) {
+            // Idempotency: only add if we don't have this message ID yet
             messages.push(msg);
             
             // Mark as unread if not current channel

@@ -5,12 +5,11 @@ use axum::{
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use futures::StreamExt;
 use sana::state::AppState;
 use sana::ws;
-use sana::messages::ChatMessage;
 use sana::config::Config;
 use sana::db;
+use sana::logic::nats;
 use tower_http::services::ServeDir;
 
 #[tokio::main]
@@ -30,6 +29,16 @@ async fn main() {
 
     // Connect to NATS
     let nats_client = async_nats::connect(&config.nats_url).await.unwrap();
+    let jetstream = async_nats::jetstream::new(nats_client.clone());
+
+    // Create or get the stream
+    let stream_config = async_nats::jetstream::stream::Config {
+        name: "SANA".to_string(),
+        subjects: vec!["topic.>".to_string()],
+        ..Default::default()
+    };
+    
+    let _ = jetstream.get_or_create_stream(stream_config).await.unwrap();
 
     // Connect to Database
     let db_pool = db::connect(&config).await.expect("Failed to connect to database");
@@ -39,65 +48,10 @@ async fn main() {
         tracing::info!("Successfully connected to database and ran migrations");
     }
 
-    let app_state = Arc::new(AppState::new(nats_client.clone()));
+    let app_state = Arc::new(AppState::new(nats_client.clone(), jetstream));
 
-    // Spawn NATS subscriber task
-    let state_clone = app_state.clone();
-    let nats_client_clone = nats_client.clone();
-    tokio::spawn(async move {
-        // Subscribe to all topics under "topic.>"
-        let mut subscriber = nats_client_clone.subscribe("topic.>").await.unwrap();
-        while let Some(message) = subscriber.next().await {
-            let subject = message.subject.to_string();
-            if let Some(encoded_channel_name) = subject.strip_prefix("topic.") {
-                let channel_name = match sana::nats_util::decode(encoded_channel_name) {
-                    Some(name) => name,
-                    None => {
-                        // Compatibility for non-encoded subjects (like system.channels if we decide so)
-                        // but actually we decided to encode everything.
-                        // Let's try to see if it's "system.channels" directly or encoded.
-                        if encoded_channel_name == "system.channels" {
-                            encoded_channel_name.to_string()
-                        } else {
-                            continue;
-                        }
-                    }
-                };
-
-                let payload = String::from_utf8_lossy(&message.payload).to_string();
-                tracing::debug!("Received from NATS on {}: {}", channel_name, payload);
-
-                if channel_name == "system.channels" {
-                    let payload_channel_name = match sana::nats_util::decode(&payload) {
-                        Some(name) => name,
-                        None => payload, // Fallback
-                    };
-                    tracing::info!("NATS: Received new channel notification: {}", payload_channel_name);
-                    // System message: just broadcast the channel name to system subscribers
-                    let channels = state_clone.channels.lock().unwrap();
-                    if let Some(tx) = channels.get("system.channels") {
-                        let _ = tx.send(payload_channel_name);
-                    } else {
-                        tracing::warn!("NATS: No local subscribers for system.channels");
-                    }
-                    continue;
-                }
-
-                // Store message in memory and only broadcast if successfully stored/parsed
-                if let Ok(chat_msg) = serde_json::from_str::<ChatMessage>(&payload) {
-                    state_clone.message_store.add_message(&channel_name, chat_msg);
-
-                    // Broadcast to local websocket subscribers
-                    let channels = state_clone.channels.lock().unwrap();
-                    if let Some(tx) = channels.get(&channel_name) {
-                        let _ = tx.send(payload);
-                    }
-                } else {
-                    tracing::warn!("Failed to parse message from NATS: {}", payload);
-                }
-            }
-        }
-    });
+    // Start background tasks
+    nats::start_nats_subscriber(app_state.clone()).await;
 
     let app = Router::new()
         .route("/hello", get(hello_world))

@@ -1,24 +1,7 @@
 use sana::config::Config;
-use sana::db;
+use sana::db::{self, users};
 use std::env;
 use sqlx::{Connection, PgConnection, PgPool};
-
-#[tokio::test]
-async fn test_db_migrations_and_connection() {
-    let ctx = TestContext::new("sana_test_db").await;
-
-    let is_connected = db::check_connection(&ctx.pool).await.expect("Failed to check connection");
-    assert!(is_connected);
-
-    let table_exists: (bool,) = sqlx::query_as(
-        "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users')"
-    )
-    .fetch_one(&ctx.pool)
-    .await
-    .expect("Failed to query information_schema");
-
-    assert!(table_exists.0, "The 'users' table should exist after migrations");
-}
 
 struct TestContext {
     pub pool: PgPool,
@@ -29,15 +12,17 @@ impl TestContext {
         let db_name = db_name.to_string();
         
         // 1. Create the test database if it doesn't exist
-        let base_config = Config::load(None);
-        let base_url = base_config.database_url;
-        let admin_url = base_url.rsplit_once('/').map(|(base, _)| format!("{}/postgres", base)).unwrap_or(base_url);
-
-        let mut conn = PgConnection::connect(&admin_url).await.expect("Failed to connect to postgres admin db");
-
-        // Drop and recreate to have a clean state
-        sqlx::query(&format!("DROP DATABASE IF EXISTS {}", db_name)).execute(&mut conn).await.ok();
-        sqlx::query(&format!("CREATE DATABASE {}", db_name)).execute(&mut conn).await.expect("Failed to create test db");
+        {
+            let base_config = Config::load(None);
+            let base_url = base_config.database_url;
+            let admin_url = base_url.rsplit_once('/').map(|(base, _)| format!("{}/postgres", base)).unwrap_or(base_url);
+            
+            let mut conn = PgConnection::connect(&admin_url).await.expect("Failed to connect to postgres admin db");
+            
+            // Drop and recreate to have a clean state
+            sqlx::query(&format!("DROP DATABASE IF EXISTS {}", db_name)).execute(&mut conn).await.ok();
+            sqlx::query(&format!("CREATE DATABASE {}", db_name)).execute(&mut conn).await.expect("Failed to create test db");
+        }
 
         // 2. Set environment variable for Config::load
         env::set_var("POSTGRES_DB", &db_name);
@@ -54,10 +39,59 @@ impl TestContext {
 
 impl Drop for TestContext {
     fn drop(&mut self) {
-        // Note: Dropping the database in 'drop' is hard because it's async 
-        // and we are in a synchronous drop. For tests, we usually rely on 
-        // 'DROP DATABASE IF EXISTS' at the start of the next run.
         env::remove_var("POSTGRES_DB");
     }
 }
 
+#[tokio::test]
+async fn test_db_migrations_and_connection() {
+    let ctx = TestContext::new("sana_test_db_migration").await;
+    
+    let is_connected = db::check_connection(&ctx.pool).await.expect("Failed to check connection");
+    assert!(is_connected);
+
+    let table_exists: (bool,) = sqlx::query_as(
+        "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users')"
+    )
+    .fetch_one(&ctx.pool)
+    .await
+    .expect("Failed to query information_schema");
+    
+    assert!(table_exists.0, "The 'users' table should exist after migrations");
+}
+
+#[tokio::test]
+async fn test_user_crud() {
+    let ctx = TestContext::new("sana_test_db_user_crud").await;
+    let pool = &ctx.pool;
+
+    let username = "testuser";
+    let password_hash = "hashed_password";
+
+    // 1. Create
+    let user = users::create_user(pool, username, password_hash).await.expect("Failed to create user");
+    assert_eq!(user.username, username);
+    assert_eq!(user.password, password_hash);
+    assert!(user.last_login.is_none());
+
+    // 2. Read by ID
+    let fetched_user = users::get_user_by_id(pool, user.user_id).await.expect("Failed to get user by id");
+    assert!(fetched_user.is_some());
+    let fetched_user = fetched_user.unwrap();
+    assert_eq!(fetched_user.username, username);
+
+    // 3. Read by Username
+    let fetched_user_by_name = users::get_user_by_username(pool, username).await.expect("Failed to get user by username");
+    assert!(fetched_user_by_name.is_some());
+    assert_eq!(fetched_user_by_name.unwrap().user_id, user.user_id);
+
+    // 4. Update last login
+    users::update_last_login(pool, user.user_id).await.expect("Failed to update last login");
+    let updated_user = users::get_user_by_id(pool, user.user_id).await.expect("Failed to get user").unwrap();
+    assert!(updated_user.last_login.is_some());
+
+    // 5. Delete
+    users::delete_user(pool, user.user_id).await.expect("Failed to delete user");
+    let deleted_user = users::get_user_by_id(pool, user.user_id).await.expect("Failed to get user");
+    assert!(deleted_user.is_none());
+}
