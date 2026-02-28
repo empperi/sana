@@ -22,7 +22,7 @@ fn test_decide_subscribe() {
         "1234",
         "User1234"
     );
-    assert_eq!(actions, vec![WsAction::Subscribe("foo".to_string())]);
+    assert_eq!(actions, vec![WsAction::Subscribe("foo".to_string(), None)]);
 }
 
 #[test]

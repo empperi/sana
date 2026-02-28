@@ -156,7 +156,7 @@ impl WebSocketService {
         R: Stream<Item = Result<Message, WebSocketError>> + Unpin,
     {
         let mut pending = HashSet::new();
-        while let Ok(Some(msg)) = rx.try_next() {
+        while let Ok(msg) = rx.try_recv() {
             let (final_msg, receipt_id) = prepare_subscription_frame(msg);
             if let Some(rid) = receipt_id { pending.insert(rid); }
             if write.send(Message::Text(final_msg)).await.is_err() { return Err(()); }

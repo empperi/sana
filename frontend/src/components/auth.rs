@@ -1,7 +1,6 @@
 use yew::prelude::*;
 use yew_router::prelude::*;
 use crate::Route;
-use wasm_bindgen::JsCast;
 use web_sys::HtmlInputElement;
 use gloo_net::http::Request;
 use web_sys::RequestCredentials;

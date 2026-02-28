@@ -15,7 +15,6 @@ use tower_http::services::{ServeDir, ServeFile};
 use tower_http::cors::{CorsLayer};
 use axum::http::{HeaderValue, Method};
 use axum_extra::extract::cookie::Key;
-use std::sync::Arc;
 
 #[tokio::main]
 async fn main() {
@@ -84,7 +83,6 @@ async fn main() {
         .allow_credentials(true);
 
     let app = Router::new()
-        .route("/hello", get(hello_world))
         .route("/ws", get(ws::ws_handler))
         .nest("/api/auth", auth::router())
         .nest_service("/", 
@@ -98,8 +96,4 @@ async fn main() {
     tracing::debug!("listening on {}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
-}
-
-async fn hello_world() -> &'static str {
-    "Hello, World!"
 }
