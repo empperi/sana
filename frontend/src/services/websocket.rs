@@ -52,7 +52,6 @@ impl WebSocketService {
                 let ws_result = WebSocket::open(ws_url);
                 
                 if let Ok(ws) = ws_result {
-                    on_status_change.emit(ConnectionStatus::Connected);
                     let (mut write, read) = ws.split();
                     let mut read = read.fuse();
 
@@ -79,7 +78,13 @@ impl WebSocketService {
                             msg = read.next() => {
                                 match msg {
                                     Some(Ok(Message::Text(text))) => {
-                                        handle_incoming_message(text, &on_message, &on_system_message, &on_connected);
+                                        handle_incoming_message(
+                                            text, 
+                                            &on_message, 
+                                            &on_system_message, 
+                                            &on_connected,
+                                            &on_status_change
+                                        );
                                     }
                                     _ => {
                                         disconnected = true;
@@ -112,10 +117,12 @@ fn handle_incoming_message(
     on_message: &Callback<(String, ChatMessage)>,
     on_system_message: &Callback<(String, String)>,
     on_connected: &Callback<String>,
+    on_status_change: &Callback<ConnectionStatus>,
 ) {
     if let Some(frame) = stomp::parse_frame(&text) {
         match frame {
             StompFrame::Connected { username } => {
+                on_status_change.emit(ConnectionStatus::Connected);
                 on_connected.emit(username);
             }
             StompFrame::Message { destination, body } => {
