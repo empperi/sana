@@ -10,7 +10,7 @@ use sana::ws;
 use sana::auth;
 use sana::config::Config;
 use sana::db;
-use sana::logic::nats;
+use sana::logic::{nats, archiver};
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::cors::{CorsLayer};
 use axum::http::{HeaderValue, Method};
@@ -90,7 +90,7 @@ async fn main() {
 
     // Start background tasks
     nats::start_nats_subscriber(app_state.clone()).await;
-    nats::start_postgres_archiver(app_state.clone()).await;
+    archiver::start(app_state.clone()).await;
 
     let cors = CorsLayer::new()
         .allow_origin("http://localhost:8080".parse::<HeaderValue>().unwrap())

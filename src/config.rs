@@ -37,10 +37,6 @@ impl Config {
         }
     }
 
-    fn init_nats_url(config_file: &Option<Value>) -> String {
-        Self::get_value("nats_url", "nats://localhost:4222", config_file)
-    }
-
     fn init_database_url(config_file: &Option<Value>) -> String {
         let user = Self::get_value("postgres_user", "sana_user", config_file);
         let password = Self::get_value("postgres_password", "sana_password", config_file);
