@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use crate::state::AppState;
 use crate::stomp::StompCommand;
 use bytes::Bytes;
@@ -8,7 +7,7 @@ use crate::messages::ChatMessage;
 #[derive(Debug, PartialEq)]
 pub enum WsAction {
     SendToClient(String),
-    Subscribe(String), // channel
+    Subscribe(String, Option<u64>), // channel, last_seen_seq
     PublishToNats(String, String, Option<String>), // subject, body, message_id
     SendReceipt(String), // receipt-id
     None,
@@ -18,17 +17,12 @@ pub fn decide(command: StompCommand, user_id: &str, username: &str) -> Vec<WsAct
     let mut actions = Vec::new();
     match command {
         StompCommand::Connect => {
-            let response = format!("CONNECTED
-version:1.2
-user_id:{}
-username:{}
-
-\0", user_id, username);
+            let response = format!("CONNECTED\nversion:1.2\nuser_id:{}\nusername:{}\n\n\0", user_id, username);
             actions.push(WsAction::SendToClient(response));
         },
-        StompCommand::Subscribe { destination, headers, .. } => {
+        StompCommand::Subscribe { destination, headers, last_seen_seq, .. } => {
             if let Some(channel_name) = destination.strip_prefix("/topic/") {
-                actions.push(WsAction::Subscribe(channel_name.to_string()));
+                actions.push(WsAction::Subscribe(channel_name.to_string(), last_seen_seq));
                 if let Some((_, receipt_id)) = headers.iter().find(|(k, _)| k == "receipt") {
                     actions.push(WsAction::SendReceipt(receipt_id.clone()));
                 }
@@ -52,11 +46,28 @@ username:{}
     actions
 }
 
-pub async fn handle_subscribe(channel_name: String, state: &Arc<AppState>, tx_internal: &tokio::sync::mpsc::Sender<String>) {
+pub async fn handle_subscribe(channel_name: String, last_seen_seq: Option<u64>, state: &AppState, tx_internal: &tokio::sync::mpsc::Sender<String>) {
     tracing::info!("Subscribing to channel: {}", channel_name);
 
     if channel_name == "system.channels" {
         send_initial_channels(state, tx_internal).await;
+    } else {
+        // Send missed messages
+        let messages = state.message_store.get_messages(&channel_name);
+        for msg in messages {
+            let should_send = match (msg.seq, last_seen_seq) {
+                (Some(seq), Some(last_seq)) => seq > last_seq,
+                _ => true, // If we don't have seqs to compare, send it (frontend idempotency will handle duplicates)
+            };
+            
+            if should_send {
+                if let Ok(msg_json) = serde_json::to_string(&msg) {
+                    let seq_header = msg.seq.map(|s| format!("seq:{}\n", s)).unwrap_or_default();
+                    let stomp_msg = format!("MESSAGE\ndestination:/topic/{}\n{}\n{}\0", channel_name, seq_header, msg_json);
+                    let _ = tx_internal.send(stomp_msg).await;
+                }
+            }
+        }
     }
 
     // Setup broadcast channel and listener.
@@ -67,7 +78,7 @@ pub async fn handle_subscribe(channel_name: String, state: &Arc<AppState>, tx_in
     subscribe_to_broadcast(channel_name.clone(), tx, tx_internal).await;
 }
 
-async fn send_initial_channels(state: &Arc<AppState>, tx_internal: &tokio::sync::mpsc::Sender<String>) {
+async fn send_initial_channels(state: &AppState, tx_internal: &tokio::sync::mpsc::Sender<String>) {
     let channels_list: Vec<String> = {
         let channels = state.channels.lock().unwrap();
         channels.keys().cloned().collect()
@@ -75,16 +86,13 @@ async fn send_initial_channels(state: &Arc<AppState>, tx_internal: &tokio::sync:
     
     for name in channels_list {
         if name != "system.channels" {
-            let stomp_msg = format!("MESSAGE
-destination:/topic/system.channels
-
-{}\0", name);
+            let stomp_msg = format!("MESSAGE\ndestination:/topic/system.channels\n\n{}\0", name);
             let _ = tx_internal.send(stomp_msg).await;
         }
     }
 }
 
-fn get_or_create_broadcast_channel(channel_name: &str, state: &Arc<AppState>) -> tokio::sync::broadcast::Sender<String> {
+fn get_or_create_broadcast_channel(channel_name: &str, state: &AppState) -> tokio::sync::broadcast::Sender<String> {
     let mut channels = state.channels.lock().unwrap();
     let is_new = !channels.contains_key(channel_name);
     
@@ -122,10 +130,7 @@ async fn subscribe_to_broadcast(channel_name: String, tx: tokio::sync::broadcast
                 "".to_string()
             };
 
-            let stomp_msg = format!("MESSAGE
-destination:/topic/{}
-{}
-{}\0", channel_name, seq_header, msg_json);
+            let stomp_msg = format!("MESSAGE\ndestination:/topic/{}\n{}\n{}\0", channel_name, seq_header, msg_json);
             if tx_internal.send(stomp_msg).await.is_err() {
                 break;
             }
@@ -133,7 +138,7 @@ destination:/topic/{}
     });
 }
 
-pub async fn process_and_publish_message(subject: String, body: String, message_id: Option<String>, username: &str, state: &Arc<AppState>) {
+pub async fn process_and_publish_message(subject: String, body: String, message_id: Option<String>, username: &str, state: &AppState) {
     let id = message_id.unwrap_or_else(|| Uuid::new_v4().to_string());
     let chat_msg = ChatMessage {
         id,
@@ -148,7 +153,7 @@ pub async fn process_and_publish_message(subject: String, body: String, message_
     }
 }
 
-async fn publish_to_nats(subject: String, body: String, state: &Arc<AppState>) {
+async fn publish_to_nats(subject: String, body: String, state: &AppState) {
     let payload = Bytes::from(body);
     if let Err(e) = state.nats_client.publish(subject, payload).await {
         tracing::error!("Failed to publish to NATS: {}", e);

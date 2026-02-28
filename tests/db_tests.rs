@@ -68,30 +68,34 @@ async fn test_user_crud() {
     let username = "testuser";
     let password_hash = "hashed_password";
 
+    let mut tx = pool.begin().await.expect("Failed to start transaction");
+
     // 1. Create
-    let user = users::create_user(pool, username, password_hash).await.expect("Failed to create user");
+    let user = users::create_user(&mut tx, username, password_hash).await.expect("Failed to create user");
     assert_eq!(user.username, username);
     assert_eq!(user.password, password_hash);
     assert!(user.last_login.is_none());
 
     // 2. Read by ID
-    let fetched_user = users::get_user_by_id(pool, user.user_id).await.expect("Failed to get user by id");
+    let fetched_user = users::get_user_by_id(&mut tx, user.user_id).await.expect("Failed to get user by id");
     assert!(fetched_user.is_some());
     let fetched_user = fetched_user.unwrap();
     assert_eq!(fetched_user.username, username);
 
     // 3. Read by Username
-    let fetched_user_by_name = users::get_user_by_username(pool, username).await.expect("Failed to get user by username");
+    let fetched_user_by_name = users::get_user_by_username(&mut tx, username).await.expect("Failed to get user by username");
     assert!(fetched_user_by_name.is_some());
     assert_eq!(fetched_user_by_name.unwrap().user_id, user.user_id);
 
     // 4. Update last login
-    users::update_last_login(pool, user.user_id).await.expect("Failed to update last login");
-    let updated_user = users::get_user_by_id(pool, user.user_id).await.expect("Failed to get user").unwrap();
+    users::update_last_login(&mut tx, user.user_id).await.expect("Failed to update last login");
+    let updated_user = users::get_user_by_id(&mut tx, user.user_id).await.expect("Failed to get user").unwrap();
     assert!(updated_user.last_login.is_some());
 
     // 5. Delete
-    users::delete_user(pool, user.user_id).await.expect("Failed to delete user");
-    let deleted_user = users::get_user_by_id(pool, user.user_id).await.expect("Failed to get user");
+    users::delete_user(&mut tx, user.user_id).await.expect("Failed to delete user");
+    let deleted_user = users::get_user_by_id(&mut tx, user.user_id).await.expect("Failed to get user");
     assert!(deleted_user.is_none());
+    
+    tx.commit().await.expect("Failed to commit transaction");
 }

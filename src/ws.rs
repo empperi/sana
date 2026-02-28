@@ -1,32 +1,36 @@
 use axum::{
     extract::{ws::{Message, WebSocket, WebSocketUpgrade}, State},
     response::IntoResponse,
+    http::StatusCode,
 };
+use axum_extra::extract::SignedCookieJar;
 use futures::sink::SinkExt;
 use futures::stream::StreamExt;
-use std::sync::Arc;
 use crate::state::AppState;
 use crate::stomp;
 use crate::logic::ws_logic::{self, WsAction};
-use rand::Rng;
+use crate::db::users;
+use uuid::Uuid;
 
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
-    State(state): State<Arc<AppState>>,
-) -> impl IntoResponse {
-    ws.on_upgrade(|socket| handle_socket(socket, state))
+    jar: SignedCookieJar,
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let cookie = jar.get("session_id").ok_or(StatusCode::UNAUTHORIZED)?;
+    let user_id_str = cookie.value();
+    let user_id = Uuid::parse_str(user_id_str).map_err(|_| StatusCode::UNAUTHORIZED)?;
+
+    let mut tx = state.db_pool.begin().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user = users::get_user_by_id(&mut tx, user_id).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    Ok(ws.on_upgrade(move |socket| handle_socket(socket, state, user.user_id.to_string(), user.username)))
 }
 
-async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
+async fn handle_socket(socket: WebSocket, state: AppState, user_id: String, username: String) {
     let (mut sender, mut receiver) = socket.split();
     let (tx_internal, mut rx_internal) = tokio::sync::mpsc::channel::<String>(100);
-
-    // Generate a random user_id and username for this session
-    let (user_id, username) = {
-        let mut rng = rand::thread_rng();
-        let id = rng.gen_range(1000..9999);
-        (id.to_string(), format!("User{}", id))
-    };
 
     let send_task = tokio::spawn(async move {
         while let Some(msg) = rx_internal.recv().await {
@@ -50,9 +54,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                             WsAction::SendToClient(response) => {
                                 let _ = tx_internal.send(response).await;
                             }
-                            WsAction::Subscribe(channel_name) => {
+                            WsAction::Subscribe(channel_name, last_seen_seq) => {
                                 if active_subscriptions.insert(channel_name.clone()) {
-                                    ws_logic::handle_subscribe(channel_name, &state, &tx_internal).await;
+                                    ws_logic::handle_subscribe(channel_name, last_seen_seq, &state, &tx_internal).await;
                                 } else {
                                     tracing::debug!("Already subscribed to channel: {}", channel_name);
                                 }

@@ -1,9 +1,8 @@
 use futures::StreamExt;
-use std::sync::Arc;
 use crate::state::AppState;
 use crate::messages::ChatMessage;
 
-pub async fn start_nats_subscriber(state: Arc<AppState>) {
+pub async fn start_nats_subscriber(state: AppState) {
     let jetstream = state.jetstream.clone();
     
     // Use an ephemeral ordered consumer to get ALL messages from the stream
@@ -27,7 +26,7 @@ pub async fn start_nats_subscriber(state: Arc<AppState>) {
     });
 }
 
-async fn handle_nats_message(message: async_nats::jetstream::Message, state: &Arc<AppState>) {
+async fn handle_nats_message(message: async_nats::jetstream::message::Message, state: &AppState) {
     let subject = message.subject.to_string();
     let Some(encoded_channel_name) = subject.strip_prefix("topic.") else { return; };
 
@@ -50,7 +49,7 @@ async fn handle_nats_message(message: async_nats::jetstream::Message, state: &Ar
     }
 }
 
-async fn handle_system_channels_message(payload: String, state: &Arc<AppState>) {
+async fn handle_system_channels_message(payload: String, state: &AppState) {
     let channel_name = crate::nats_util::decode(&payload).unwrap_or(payload);
     tracing::info!("NATS: Received new channel notification: {}", channel_name);
 
@@ -60,7 +59,7 @@ async fn handle_system_channels_message(payload: String, state: &Arc<AppState>) 
     }
 }
 
-async fn handle_chat_message(channel_name: String, payload: String, sequence: u64, state: &Arc<AppState>) {
+async fn handle_chat_message(channel_name: String, payload: String, sequence: u64, state: &AppState) {
     if let Ok(mut chat_msg) = serde_json::from_str::<ChatMessage>(&payload) {
         chat_msg.seq = Some(sequence);
         state.message_store.add_message(&channel_name, chat_msg.clone());

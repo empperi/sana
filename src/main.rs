@@ -3,14 +3,19 @@ use axum::{
     Router,
 };
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::env;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use sana::state::AppState;
+use sana::state::{AppState, CombinedState};
 use sana::ws;
+use sana::auth;
 use sana::config::Config;
 use sana::db;
 use sana::logic::nats;
-use tower_http::services::ServeDir;
+use tower_http::services::{ServeDir, ServeFile};
+use tower_http::cors::{CorsLayer};
+use axum::http::{HeaderValue, Method};
+use axum_extra::extract::cookie::Key;
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() {
@@ -48,16 +53,46 @@ async fn main() {
         tracing::info!("Successfully connected to database and ran migrations");
     }
 
-    let app_state = Arc::new(AppState::new(nats_client.clone(), jetstream));
+    let cookie_key = match env::var("COOKIE_KEY") {
+        Ok(key) => {
+            if let Ok(bytes) = hex::decode(&key) {
+                Key::try_from(&bytes[..]).unwrap_or_else(|_| {
+                    tracing::warn!("Invalid COOKIE_KEY length, generating new one");
+                    Key::generate()
+                })
+            } else {
+                tracing::warn!("Invalid COOKIE_KEY hex, generating new one");
+                Key::generate()
+            }
+        }
+        Err(_) => Key::generate(),
+    };
+
+    let app_state = AppState::new(nats_client.clone(), jetstream, db_pool);
+    let combined_state = CombinedState {
+        app: app_state.clone(),
+        cookie_key,
+    };
 
     // Start background tasks
     nats::start_nats_subscriber(app_state.clone()).await;
 
+    let cors = CorsLayer::new()
+        .allow_origin("http://localhost:8080".parse::<HeaderValue>().unwrap())
+        .allow_methods([Method::GET, Method::POST])
+        .allow_headers([axum::http::header::CONTENT_TYPE])
+        .allow_credentials(true);
+
     let app = Router::new()
         .route("/hello", get(hello_world))
         .route("/ws", get(ws::ws_handler))
-        .nest_service("/", ServeDir::new("frontend/dist"))
-        .with_state(app_state);
+        .nest("/api/auth", auth::router())
+        .nest_service("/", 
+            ServeDir::new("frontend/dist")
+                .not_found_service(ServeFile::new("frontend/dist/index.html"))
+        )
+        .layer(cors)
+        .with_state(combined_state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     tracing::debug!("listening on {}", addr);

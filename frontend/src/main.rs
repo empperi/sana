@@ -1,18 +1,54 @@
 use yew::prelude::*;
+use yew_router::prelude::*;
 use uuid::Uuid;
 use chrono::Utc;
 use std::rc::Rc;
 use std::cell::RefCell;
+use gloo_net::http::Request;
+use web_sys::RequestCredentials;
 
 use frontend::components::sidebar::Sidebar;
 use frontend::components::chat_window::ChatWindow;
+use frontend::components::auth::{Login, Register};
 use frontend::services::websocket::{WebSocketService, ConnectionStatus, StompClient};
 use frontend::types::ChatMessage;
 use frontend::logic::ChatState;
 use frontend::stomp;
+use frontend::Route;
 
-#[function_component(App)]
-fn app() -> Html {
+#[function_component(ChatApp)]
+pub fn chat_app() -> Html {
+    let navigator = use_navigator().unwrap();
+    let auth_check_done = use_state(|| false);
+
+    // Initial Auth Check
+    {
+        let navigator = navigator.clone();
+        let auth_check_done = auth_check_done.clone();
+        use_effect_with((), move |_| {
+            wasm_bindgen_futures::spawn_local(async move {
+                let resp = Request::get(&frontend::get_api_url("/api/auth/me"))
+                    .credentials(RequestCredentials::Include)
+                    .send()
+                    .await;
+                match resp {
+                    Ok(r) if r.status() == 200 => {
+                        let content_type = r.headers().get("content-type").unwrap_or_default();
+                        if content_type.contains("application/json") {
+                            auth_check_done.set(true);
+                        } else {
+                            navigator.push(&Route::Login);
+                        }
+                    }
+                    _ => {
+                        navigator.push(&Route::Login);
+                    }
+                }
+            });
+            || {}
+        });
+    }
+
     let chat_state = use_state(ChatState::new);
     let ws_service = use_mut_ref(|| None::<Rc<WebSocketService>>);
     let state_ref = use_mut_ref(ChatState::new);
@@ -31,15 +67,18 @@ fn app() -> Html {
         let chat_state = chat_state.clone();
         let state_ref = state_ref.clone();
         let ws_service_ref = ws_service.clone();
+        let auth_check_done_val = *auth_check_done;
 
-        use_effect_with((), move |_| {
-            let on_message = create_on_message_callback(chat_state.clone(), state_ref.clone());
-            let on_system_message = create_on_system_message_callback(chat_state.clone(), state_ref.clone(), ws_service_ref.clone());
-            let on_connected = create_on_connected_callback(chat_state.clone(), state_ref.clone());
-            let on_status_change = create_on_status_change_callback(chat_state.clone(), state_ref.clone(), ws_service_ref.clone());
+        use_effect_with(auth_check_done_val, move |&done| {
+            if done {
+                let on_message = create_on_message_callback(chat_state.clone(), state_ref.clone());
+                let on_system_message = create_on_system_message_callback(chat_state.clone(), state_ref.clone(), ws_service_ref.clone());
+                let on_connected = create_on_connected_callback(chat_state.clone(), state_ref.clone());
+                let on_status_change = create_on_status_change_callback(chat_state.clone(), state_ref.clone(), ws_service_ref.clone());
 
-            let service = Rc::new(WebSocketService::connect(on_message, on_system_message, on_connected, on_status_change));
-            *ws_service_ref.borrow_mut() = Some(service);
+                let service = Rc::new(WebSocketService::connect(on_message, on_system_message, on_connected, on_status_change));
+                *ws_service_ref.borrow_mut() = Some(service);
+            }
             || {}
         });
     }
@@ -83,6 +122,10 @@ fn app() -> Html {
         })
     };
 
+    if !*auth_check_done {
+        return html! { <div>{ "Loading..." }</div> };
+    }
+
     render_app(&chat_state, on_switch_channel, on_create_channel, on_send_message)
 }
 
@@ -102,15 +145,14 @@ fn create_on_system_message_callback(
 ) -> Callback<(String, String)> {
     Callback::from(move |(_topic, body): (String, String)| {
         let mut state = (*state_ref.borrow()).clone();
-                    if !state.channels.contains(&body) {
-                        state.handle_system_message(body.clone());
-                        if let Some(service) = &*ws_service_ref.borrow() {
-                            service.send(stomp::create_subscribe_frame(&body, None, None));
-                        }
-                        *state_ref.borrow_mut() = state.clone();
-                        chat_state.set(state);
-                    }
-        
+        if !state.channels.contains(&body) {
+            state.handle_system_message(body.clone());
+            if let Some(service) = &*ws_service_ref.borrow() {
+                service.send(stomp::create_subscribe_frame(&body, None, None));
+            }
+            *state_ref.borrow_mut() = state.clone();
+            chat_state.set(state);
+        }
     })
 }
 
@@ -175,6 +217,7 @@ fn handle_send_message(
 
     state.add_pending_message(channel_name.clone(), pending_msg);
     if let Some(service) = &*ws_service.borrow() {
+        let service: &Rc<WebSocketService> = service;
         service.send(stomp::create_send_frame(&channel_name, &message_id, &text));
     }
     *state_ref.borrow_mut() = state.clone();
@@ -209,6 +252,24 @@ fn render_app(
                 on_send_message={on_send_message}
             />
         </div>
+    }
+}
+
+fn switch(routes: Route) -> Html {
+    match routes {
+        Route::Chat => html! { <ChatApp /> },
+        Route::Login => html! { <Login /> },
+        Route::Register => html! { <Register /> },
+        Route::NotFound => html! { <h1>{ "404 Not Found" }</h1> },
+    }
+}
+
+#[function_component(App)]
+fn app() -> Html {
+    html! {
+        <BrowserRouter>
+            <Switch<Route> render={switch} />
+        </BrowserRouter>
     }
 }
 

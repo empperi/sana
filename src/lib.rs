@@ -6,3 +6,4 @@ pub mod nats_util;
 pub mod config;
 pub mod db;
 pub mod logic;
+pub mod auth;
