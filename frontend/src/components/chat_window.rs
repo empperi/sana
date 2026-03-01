@@ -16,7 +16,7 @@ pub struct ChatWindowProps {
 #[function_component(ChatWindow)]
 pub fn chat_window(props: &ChatWindowProps) -> Html {
     let input_value = use_state(String::new);
-    let chat_container_ref = use_node_ref();
+    let history_ref = use_node_ref();
     let input_ref = use_node_ref();
     let show_new_messages_notification = use_state(|| false);
     let is_user_scrolled_up = use_state(|| false);
@@ -63,19 +63,18 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
 
     // Effect to handle scrolling when messages change
     {
-        let chat_container_ref = chat_container_ref.clone();
+        let history_ref = history_ref.clone();
         let is_user_scrolled_up = is_user_scrolled_up.clone();
         let show_new_messages_notification = show_new_messages_notification.clone();
         let messages_len = props.messages.len();
 
         use_effect_with(messages_len, move |_| {
             if !*is_user_scrolled_up {
-                if let Some(element) = chat_container_ref.cast::<HtmlElement>() {
+                if let Some(element) = history_ref.cast::<HtmlElement>() {
                     element.set_scroll_top(element.scroll_height());
                 }
             } else {
                  // If scrolled up and new message arrives (length increased), show notification
-                 // Note: This logic is simplified; ideally we'd check if the new message is ours or others
                  show_new_messages_notification.set(true);
             }
             || {}
@@ -109,12 +108,12 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
     };
 
     let on_scroll = {
-        let chat_container_ref = chat_container_ref.clone();
+        let history_ref = history_ref.clone();
         let is_user_scrolled_up = is_user_scrolled_up.clone();
         let show_new_messages_notification = show_new_messages_notification.clone();
 
         Callback::from(move |_| {
-            if let Some(element) = chat_container_ref.cast::<HtmlElement>() {
+            if let Some(element) = history_ref.cast::<HtmlElement>() {
                 let scroll_top = element.scroll_top();
                 let scroll_height = element.scroll_height();
                 let client_height = element.client_height();
@@ -132,12 +131,12 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
     };
 
     let scroll_to_bottom = {
-        let chat_container_ref = chat_container_ref.clone();
+        let history_ref = history_ref.clone();
         let is_user_scrolled_up = is_user_scrolled_up.clone();
         let show_new_messages_notification = show_new_messages_notification.clone();
 
         Callback::from(move |_| {
-            if let Some(element) = chat_container_ref.cast::<HtmlElement>() {
+            if let Some(element) = history_ref.cast::<HtmlElement>() {
                 element.set_scroll_top(element.scroll_height());
                 is_user_scrolled_up.set(false);
                 show_new_messages_notification.set(false);
@@ -150,19 +149,20 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
             <header>
                 <h1>{ format!("# {}", props.current_channel) }</h1>
             </header>
-            <div class="chat-history" ref={chat_container_ref} onscroll={on_scroll}>
+            <div class="chat-history" ref={history_ref} onscroll={on_scroll}>
                 { for props.messages.iter().map(|msg| {
                     let local_time: DateTime<Local> = DateTime::from(msg.timestamp);
                     let time_str = local_time.format("%H:%M:%S").to_string();
 
                     let is_me = msg.user == props.current_username;
-                    let mut wrapper_class = if is_me { "message-wrapper me".to_string() } else { "message-wrapper".to_string() };
-                    if msg.pending {
-                        wrapper_class = format!("{} pending", wrapper_class);
-                    }
+                    let wrapper_class = classes!(
+                        "message-wrapper",
+                        if is_me { Some("me") } else { None },
+                        if msg.pending { Some("pending") } else { None }
+                    );
 
                     html! {
-                        <div class={wrapper_class}>
+                        <div key={msg.id.to_string()} class={wrapper_class}>
                             <div class="meta">
                                 <span class="user">{ &msg.user }</span>
                                 <span class="time">{ time_str }</span>

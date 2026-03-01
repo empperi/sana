@@ -68,21 +68,18 @@ pub fn sidebar(props: &SidebarProps) -> Html {
                     let is_active = props.current_channel == channel_name;
                     let has_unread = props.unread_channels.contains(&channel_name);
 
-                    let mut classes = String::new();
-                    if is_active {
-                        classes.push_str("active ");
-                    }
-                    if has_unread {
-                        classes.push_str("unread ");
-                    }
+                    let li_classes = classes!(
+                        if is_active { Some("active") } else { None },
+                        if has_unread { Some("unread") } else { None }
+                    );
 
                     let onclick = {
                         let on_switch_channel = props.on_switch_channel.clone();
-                        let channel_name = channel_name.clone();
-                        Callback::from(move |_| on_switch_channel.emit(channel_name.clone()))
+                        let name = channel_name.clone();
+                        Callback::from(move |_| on_switch_channel.emit(name.clone()))
                     };
                     html! {
-                        <li class={classes} {onclick}>
+                        <li key={channel_name.clone()} class={li_classes} {onclick}>
                             { format!("# {}", channel_name) }
                         </li>
                     }

@@ -102,7 +102,7 @@ pub fn chat_app() -> Html {
         Callback::from(move |name: String| {
             let mut state = (*state_ref.borrow()).clone();
             if !state.channels.contains(&name) {
-                state.channels.push(name.clone());
+                state.add_pending_channel(name.clone());
                 if let Some(service) = &*ws_service.borrow() {
                     service.send(stomp::create_subscribe_frame(&name, None, None));
                 }
@@ -145,13 +145,19 @@ fn create_on_system_message_callback(
 ) -> Callback<(String, String)> {
     Callback::from(move |(_topic, body): (String, String)| {
         let mut state = (*state_ref.borrow()).clone();
-        if !state.channels.contains(&body) {
-            state.handle_system_message(body.clone());
+        if let Some(channel_name) = state.handle_system_message(body) {
             if let Some(service) = &*ws_service_ref.borrow() {
-                service.send(stomp::create_subscribe_frame(&body, None, None));
+                service.send(stomp::create_subscribe_frame(&channel_name, None, None));
             }
             *state_ref.borrow_mut() = state.clone();
             chat_state.set(state);
+        } else {
+            // Even if no subscription is needed, we might have updated the ID or cleared pending state
+            let current_state = (*state_ref.borrow()).clone();
+            if state != current_state {
+                *state_ref.borrow_mut() = state.clone();
+                chat_state.set(state);
+            }
         }
     })
 }

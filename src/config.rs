@@ -22,7 +22,7 @@ impl Config {
             .and_then(|path| fs::read_to_string(path).ok())
             .and_then(|content| serde_json::from_str::<Value>(&content).ok());
 
-        let nats_url = Self::get_value("nats_url", "nats://localhost:4222", &config_file);
+        let nats_url = Self::get_value("nats_url", "nats://127.0.0.1:4222", &config_file);
         
         // Prioritize a direct DATABASE_URL environment variable
         let database_url = if let Ok(url) = env::var("DATABASE_URL") {
@@ -40,7 +40,7 @@ impl Config {
     fn init_database_url(config_file: &Option<Value>) -> String {
         let user = Self::get_value("postgres_user", "sana_user", config_file);
         let password = Self::get_value("postgres_password", "sana_password", config_file);
-        let host = Self::get_value("postgres_host", "localhost", config_file);
+        let host = Self::get_value("postgres_host", "127.0.0.1", config_file);
         let port = Self::get_value("postgres_port", "5432", config_file);
         let db = Self::get_value("postgres_db", "sana_db", config_file);
 

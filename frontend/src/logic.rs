@@ -7,6 +7,7 @@ use uuid::Uuid;
 pub struct ChatState {
     pub channels: Vec<String>,
     pub channel_id_map: HashMap<String, Uuid>,
+    pub pending_channels: HashSet<String>,
     pub current_channel: String,
     pub username: String,
     pub user_id: Uuid,
@@ -24,6 +25,7 @@ impl ChatState {
         Self {
             channels: vec!["General".to_string()],
             channel_id_map,
+            pending_channels: HashSet::new(),
             current_channel: "General".to_string(),
             username: String::new(),
             user_id: Uuid::nil(),
@@ -48,13 +50,25 @@ impl ChatState {
         }
     }
 
-    pub fn handle_system_message(&mut self, body: String) {
+    pub fn handle_system_message(&mut self, body: String) -> Option<String> {
         if let Ok(channel) = serde_json::from_str::<Channel>(&body) {
-            if !self.channels.contains(&channel.name) {
-                self.channels.push(channel.name.clone());
+            let name = channel.name.clone();
+            let is_new = !self.channels.contains(&name);
+            let is_pending = self.pending_channels.contains(&name);
+
+            if is_new || is_pending {
+                if is_new {
+                    self.channels.push(name.clone());
+                }
+                self.channel_id_map.insert(name.clone(), channel.id);
+                self.pending_channels.remove(&name);
+                
+                if is_new {
+                    return Some(name);
+                }
             }
-            self.channel_id_map.insert(channel.name, channel.id);
         }
+        None
     }
 
     pub fn switch_channel(&mut self, channel: String) {
@@ -71,6 +85,13 @@ impl ChatState {
         self.user_id = user_id;
     }
     
+    pub fn add_pending_channel(&mut self, name: String) {
+        if !self.channels.contains(&name) {
+            self.channels.push(name.clone());
+            self.pending_channels.insert(name);
+        }
+    }
+
     pub fn add_pending_message(&mut self, channel: String, msg: ChatMessage) {
         let messages = self.messages.entry(channel).or_insert_with(Vec::new);
         messages.push(msg);

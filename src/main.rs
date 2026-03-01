@@ -30,13 +30,19 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
+    tracing::info!("Starting Sana backend...");
+
     let config = Config::new();
 
     // Connect to NATS
+    tracing::info!("Connecting to NATS at {}...", config.nats_url);
     let nats_client = async_nats::connect(&config.nats_url).await.unwrap();
+    tracing::info!("Connected to NATS");
+    
     let jetstream = async_nats::jetstream::new(nats_client.clone());
 
     // Create or get the stream
+    tracing::info!("Initializing JetStream...");
     let stream_config = async_nats::jetstream::stream::Config {
         name: "SANA".to_string(),
         subjects: vec!["topic.>".to_string()],
@@ -44,8 +50,10 @@ async fn main() {
     };
     
     let _ = jetstream.get_or_create_stream(stream_config).await.unwrap();
+    tracing::info!("JetStream initialized");
 
     // Connect to Database
+    tracing::info!("Connecting to database...");
     let mut db_pool = None;
     for i in 0..10 {
         match db::connect(&config).await {

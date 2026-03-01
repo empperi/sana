@@ -68,8 +68,56 @@ fn test_handle_system_message_adds_channel() {
         created_at: Utc::now(),
     };
     let payload = serde_json::to_string(&channel).unwrap();
-    state.handle_system_message(payload);
+    let result = state.handle_system_message(payload);
+    
+    assert_eq!(result, Some("new-room".to_string()));
     assert!(state.channels.contains(&"new-room".to_string()));
+    assert_eq!(state.channel_id_map.get("new-room"), Some(&channel.id));
+}
+
+#[test]
+fn test_channel_creation_pending_and_confirmation() {
+    let mut state = ChatState::new();
+    let channel_name = "local-room".to_string();
+    
+    // 1. User creates channel locally
+    state.add_pending_channel(channel_name.clone());
+    assert!(state.channels.contains(&channel_name));
+    assert!(state.pending_channels.contains(&channel_name));
+    assert!(state.channel_id_map.get(&channel_name).is_none());
+
+    // 2. Backend confirms channel via NATS/STOMP
+    let confirmed_id = Uuid::new_v4();
+    let channel = Channel {
+        id: confirmed_id,
+        name: channel_name.clone(),
+        is_private: false,
+        created_at: Utc::now(),
+    };
+    let payload = serde_json::to_string(&channel).unwrap();
+    let result = state.handle_system_message(payload);
+
+    // 3. State should be updated, but result should be None because we already have it (no new subscription needed)
+    assert_eq!(result, None);
+    assert!(state.channels.contains(&channel_name));
+    assert!(!state.pending_channels.contains(&channel_name));
+    assert_eq!(state.channel_id_map.get(&channel_name), Some(&confirmed_id));
+}
+
+#[test]
+fn test_handle_system_message_ignore_duplicates() {
+    let mut state = ChatState::new();
+    let channel = Channel {
+        id: Uuid::new_v4(),
+        name: "General".to_string(),
+        is_private: false,
+        created_at: Utc::now(),
+    };
+    let payload = serde_json::to_string(&channel).unwrap();
+    
+    // Should return None because "General" already exists
+    let result = state.handle_system_message(payload);
+    assert_eq!(result, None);
 }
 
 #[test]

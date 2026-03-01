@@ -60,7 +60,7 @@ async fn handle_system_channels_message(payload: String, state: &AppState) {
 
         let channels = state.channels.lock().unwrap();
         if let Some(tx) = channels.get("system.channels") {
-            let _ = tx.send(channel.name);
+            let _ = tx.send(payload);
         }
     } else {
         tracing::warn!("NATS: Failed to parse channel from system.channels: {}", payload);
