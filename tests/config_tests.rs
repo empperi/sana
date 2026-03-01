@@ -12,9 +12,9 @@ fn test_config_loading() {
         
         let config = Config::load(None);
         
-        assert_eq!(config.nats_url, "nats://localhost:4222");
+        assert_eq!(config.nats_url, "nats://127.0.0.1:4222");
         assert!(config.database_url.contains("sana_user"));
-        assert!(config.database_url.contains("localhost:5432/sana_db"));
+        assert!(config.database_url.contains("127.0.0.1:5432/sana_db"));
     }
 
     // 2. Test File Override
