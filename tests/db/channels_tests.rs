@@ -76,3 +76,32 @@ async fn test_get_channel_by_name() {
     assert_eq!(fetched.id, channel.id);
     assert!(fetched.is_private);
 }
+
+#[tokio::test]
+async fn test_get_all_channels() {
+    let ctx = TestContext::new("sana_test_get_all_channels").await;
+    let pool = &ctx.pool;
+
+    let c1 = channels::Channel {
+        id: Uuid::new_v4(),
+        name: "channel-a".to_string(),
+        is_private: false,
+        created_at: Utc::now(),
+    };
+    let c2 = channels::Channel {
+        id: Uuid::new_v4(),
+        name: "channel-b".to_string(),
+        is_private: false,
+        created_at: Utc::now(),
+    };
+
+    let mut tx = pool.begin().await.unwrap();
+    channels::insert_channel(&mut tx, &c1).await.unwrap();
+    channels::insert_channel(&mut tx, &c2).await.unwrap();
+    tx.commit().await.unwrap();
+
+    let all = channels::get_all_channels(pool).await.unwrap();
+    assert!(all.len() >= 2);
+    assert!(all.iter().any(|c| c.name == "channel-a"));
+    assert!(all.iter().any(|c| c.name == "channel-b"));
+}

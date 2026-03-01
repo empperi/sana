@@ -33,6 +33,7 @@ impl TestContext {
     }
 }
 
+#[allow(dead_code)]
 pub async fn create_test_user(pool: &PgPool, username: &str) -> users::User {
     let mut tx = pool.begin().await.expect("Failed to start transaction");
     let user = users::create_user(&mut tx, username, "testpass").await.expect("Failed to create test user");
@@ -40,6 +41,7 @@ pub async fn create_test_user(pool: &PgPool, username: &str) -> users::User {
     user
 }
 
+#[allow(dead_code)]
 pub async fn create_test_channel(pool: &PgPool, name: &str) -> channels::Channel {
     let mut tx = pool.begin().await.expect("Failed to start transaction");
     let channel = channels::Channel {

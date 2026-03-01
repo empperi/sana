@@ -121,6 +121,23 @@ fn test_handle_system_message_ignore_duplicates() {
 }
 
 #[test]
+fn test_set_channels() {
+    let mut state = ChatState::new();
+    let c1 = Channel {
+        id: Uuid::new_v4(),
+        name: "test-1".to_string(),
+        is_private: false,
+        created_at: Utc::now(),
+    };
+    
+    state.set_channels(vec![c1.clone()]);
+    
+    assert!(state.channels.contains(&"test-1".to_string()));
+    assert!(state.channels.contains(&"General".to_string())); // Should be preserved
+    assert_eq!(state.channel_id_map.get("test-1"), Some(&c1.id));
+}
+
+#[test]
 fn test_pending_message_replacement_different_user_id() {
     let mut state = ChatState::new();
     let msg_id = Uuid::new_v4();

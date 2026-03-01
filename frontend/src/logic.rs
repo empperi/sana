@@ -85,6 +85,17 @@ impl ChatState {
         self.user_id = user_id;
     }
     
+    pub fn set_channels(&mut self, channels: Vec<Channel>) {
+        self.channels = channels.iter().map(|c| c.name.clone()).collect();
+        self.channel_id_map = channels.into_iter().map(|c| (c.name, c.id)).collect();
+        
+        // Ensure "General" is always present if for some reason it's missing from API
+        if !self.channels.contains(&"General".to_string()) {
+            self.channels.insert(0, "General".to_string());
+            self.channel_id_map.insert("General".to_string(), Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap());
+        }
+    }
+
     pub fn add_pending_channel(&mut self, name: String) {
         if !self.channels.contains(&name) {
             self.channels.push(name.clone());

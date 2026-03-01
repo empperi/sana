@@ -1,16 +1,51 @@
 use axum::{
-    extract::State,
-    http::StatusCode,
+    extract::{State, FromRef},
+    http::{StatusCode, request::Parts},
     response::IntoResponse,
     routing::{get, post},
     Json, Router,
+    async_trait,
+    extract::FromRequestParts,
 };
-use axum_extra::extract::{cookie::{Cookie}, SignedCookieJar};
+use axum_extra::extract::{cookie::{Cookie, Key}, SignedCookieJar};
 use serde::{Deserialize, Serialize};
 use crate::state::{AppState, CombinedState};
 use crate::db::users;
 use bcrypt::{hash, verify, DEFAULT_COST};
 use uuid::Uuid;
+
+pub struct UserSession {
+    pub user_id: Uuid,
+}
+
+#[async_trait]
+impl<S> FromRequestParts<S> for UserSession
+where
+    S: Send + Sync,
+    AppState: FromRef<S>,
+    Key: FromRef<S>,
+{
+    type Rejection = StatusCode;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let jar: SignedCookieJar<Key> = SignedCookieJar::from_request_parts(parts, state).await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        if let Some(cookie) = jar.get("session_id") {
+            if let Ok(user_id) = Uuid::parse_str(cookie.value()) {
+                // Verify user exists in DB
+                let app_state = AppState::from_ref(state);
+                let mut tx = app_state.db_pool.begin().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+                let user_exists = users::get_user_by_id(&mut tx, user_id).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.is_some();
+                if user_exists {
+                    return Ok(UserSession { user_id });
+                }
+            }
+        }
+
+        Err(StatusCode::UNAUTHORIZED)
+    }
+}
 
 pub fn router() -> Router<CombinedState> {
     Router::new()

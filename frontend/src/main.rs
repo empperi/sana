@@ -16,6 +16,20 @@ use frontend::logic::ChatState;
 use frontend::stomp;
 use frontend::Route;
 
+async fn fetch_channels() -> Result<Vec<frontend::types::Channel>, String> {
+    let response = Request::get("/api/channels")
+        .credentials(RequestCredentials::Include)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if response.status() == 200 {
+        response.json::<Vec<frontend::types::Channel>>().await.map_err(|e| e.to_string())
+    } else {
+        Err(format!("Failed to fetch channels: {}", response.status()))
+    }
+}
+
 #[function_component(ChatApp)]
 pub fn chat_app() -> Html {
     let navigator = use_navigator().unwrap();
@@ -78,6 +92,41 @@ pub fn chat_app() -> Html {
 
                 let service = Rc::new(WebSocketService::connect(on_message, on_system_message, on_connected, on_status_change));
                 *ws_service_ref.borrow_mut() = Some(service);
+            }
+            || {}
+        });
+    }
+
+    // Fetch channels from database
+    {
+        let chat_state = chat_state.clone();
+        let state_ref = state_ref.clone();
+        let ws_service_ref = ws_service.clone();
+        let auth_check_done_val = *auth_check_done;
+
+        use_effect_with(auth_check_done_val, move |&done| {
+            if done {
+                wasm_bindgen_futures::spawn_local(async move {
+                    match fetch_channels().await {
+                        Ok(channels) => {
+                            let mut state = (*state_ref.borrow()).clone();
+                            state.set_channels(channels);
+                            
+                            // Subscribe to all channels
+                            if let Some(service) = &*ws_service_ref.borrow() {
+                                for channel in &state.channels {
+                                    service.send(stomp::create_subscribe_frame(channel, None, None));
+                                }
+                            }
+                            
+                            *state_ref.borrow_mut() = state.clone();
+                            chat_state.set(state);
+                        },
+                        Err(e) => {
+                            gloo_console::error!(format!("Failed to fetch channels: {}", e));
+                        }
+                    }
+                });
             }
             || {}
         });

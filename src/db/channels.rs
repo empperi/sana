@@ -58,3 +58,15 @@ pub async fn get_channel_by_id(
 
     Ok(channel)
 }
+
+pub async fn get_all_channels(
+    pool: &sqlx::PgPool
+) -> Result<Vec<Channel>, sqlx::Error> {
+    let channels = sqlx::query_as::<_, Channel>(
+        "SELECT id, name, is_private, created_at FROM channels ORDER BY name ASC"
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(channels)
+}

@@ -32,3 +32,4 @@ bcrypt = "0.15"
 [dev-dependencies]
 indoc = "2.0"
 tempfile = "3"
+tower = { version = "0.5", features = ["util"] }

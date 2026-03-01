@@ -1,20 +1,11 @@
-use axum::{
-    routing::get,
-    Router,
-};
 use std::net::SocketAddr;
 use std::env;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use sana::state::{AppState, CombinedState};
-use sana::ws;
-use sana::auth;
 use sana::config::Config;
 use sana::db;
 use sana::logic::{nats, archiver};
 use uuid::Uuid;
-use tower_http::services::{ServeDir, ServeFile};
-use tower_http::cors::{CorsLayer};
-use axum::http::{HeaderValue, Method};
 use axum_extra::extract::cookie::Key;
 
 #[tokio::main]
@@ -113,21 +104,7 @@ async fn main() {
     nats::start_nats_subscriber(app_state.clone()).await;
     archiver::start(app_state.clone()).await;
 
-    let cors = CorsLayer::new()
-        .allow_origin("http://localhost:8080".parse::<HeaderValue>().unwrap())
-        .allow_methods([Method::GET, Method::POST])
-        .allow_headers([axum::http::header::CONTENT_TYPE])
-        .allow_credentials(true);
-
-    let app = Router::new()
-        .route("/ws", get(ws::ws_handler))
-        .nest("/api/auth", auth::router())
-        .nest_service("/", 
-            ServeDir::new("frontend/dist")
-                .not_found_service(ServeFile::new("frontend/dist/index.html"))
-        )
-        .layer(cors)
-        .with_state(combined_state);
+    let app = sana::router::create_router(combined_state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     tracing::debug!("listening on {}", addr);
