@@ -105,3 +105,45 @@ async fn test_get_all_channels() {
     assert!(all.iter().any(|c| c.name == "channel-a"));
     assert!(all.iter().any(|c| c.name == "channel-b"));
 }
+
+#[tokio::test]
+async fn test_join_channel() {
+    let ctx = TestContext::new("sana_test_join_channel").await;
+    let pool = &ctx.pool;
+
+    let user = crate::db::common::create_test_user(pool, "join_user").await;
+    let channel = crate::db::common::create_test_channel(pool, "to_join").await;
+
+    let mut tx = pool.begin().await.unwrap();
+    channels::join_channel(&mut tx, user.id, channel.id).await.expect("Failed to join");
+    tx.commit().await.unwrap();
+
+    let joined = channels::get_user_channels(pool, user.id).await.unwrap();
+    assert!(joined.iter().any(|c| c.id == channel.id));
+}
+
+#[tokio::test]
+async fn test_search_unjoined_channels() {
+    let ctx = TestContext::new("sana_test_search_unjoined").await;
+    let pool = &ctx.pool;
+
+    let user = crate::db::common::create_test_user(pool, "search_user").await;
+    let c1 = crate::db::common::create_test_channel(pool, "apple").await;
+    let _c2 = crate::db::common::create_test_channel(pool, "banana").await;
+    let _c3 = crate::db::common::create_test_channel(pool, "cherry").await;
+
+    // Join cherry, so it shouldn't show up in unjoined search
+    let mut tx = pool.begin().await.unwrap();
+    channels::join_channel(&mut tx, user.id, _c3.id).await.unwrap();
+    tx.commit().await.unwrap();
+
+    // Search for "a"
+    let results = channels::search_unjoined_channels(pool, user.id, "a", 10).await.unwrap();
+    
+    // Should find apple and banana, but not cherry (even though it has 'a'? wait cherry doesn't have 'a')
+    // Should find apple and banana.
+    assert_eq!(results.len(), 2);
+    assert!(results.iter().any(|c| c.id == c1.id));
+    assert!(results.iter().any(|c| c.name == "banana"));
+    assert!(!results.iter().any(|c| c.id == _c3.id));
+}

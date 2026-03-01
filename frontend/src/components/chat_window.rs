@@ -1,5 +1,5 @@
 use yew::prelude::*;
-use crate::types::ChatMessage;
+use crate::types::ChannelEntry;
 use chrono::{DateTime, Local};
 use web_sys::{HtmlElement, HtmlInputElement};
 use gloo_events::EventListener;
@@ -8,7 +8,7 @@ use wasm_bindgen::JsCast;
 #[derive(Properties, PartialEq)]
 pub struct ChatWindowProps {
     pub current_channel: String,
-    pub messages: Vec<ChatMessage>,
+    pub messages: Vec<ChannelEntry>,
     pub current_username: String,
     pub on_send_message: Callback<String>,
 }
@@ -150,25 +150,41 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                 <h1>{ format!("# {}", props.current_channel) }</h1>
             </header>
             <div class="chat-history" ref={history_ref} onscroll={on_scroll}>
-                { for props.messages.iter().map(|msg| {
-                    let local_time: DateTime<Local> = DateTime::from(msg.timestamp);
-                    let time_str = local_time.format("%H:%M:%S").to_string();
+                { for props.messages.iter().map(|entry| {
+                    match entry {
+                        ChannelEntry::Message(msg) => {
+                            let local_time: DateTime<Local> = DateTime::from(msg.timestamp);
+                            let time_str = local_time.format("%H:%M:%S").to_string();
 
-                    let is_me = msg.user == props.current_username;
-                    let wrapper_class = classes!(
-                        "message-wrapper",
-                        if is_me { Some("me") } else { None },
-                        if msg.pending { Some("pending") } else { None }
-                    );
+                            let is_me = msg.user == props.current_username;
+                            let wrapper_class = classes!(
+                                "message-wrapper",
+                                if is_me { Some("me") } else { None },
+                                if msg.pending { Some("pending") } else { None }
+                            );
 
-                    html! {
-                        <div key={msg.id.to_string()} class={wrapper_class}>
-                            <div class="meta">
-                                <span class="user">{ &msg.user }</span>
-                                <span class="time">{ time_str }</span>
-                            </div>
-                            <div class="message">{ &msg.message }</div>
-                        </div>
+                            html! {
+                                <div key={msg.id.to_string()} class={wrapper_class}>
+                                    <div class="meta">
+                                        <span class="user">{ &msg.user }</span>
+                                        <span class="time">{ time_str }</span>
+                                    </div>
+                                    <div class="message">{ &msg.message }</div>
+                                </div>
+                            }
+                        },
+                        ChannelEntry::UserJoined { id, username, timestamp } => {
+                            let local_time: DateTime<Local> = DateTime::from(*timestamp);
+                            let time_str = local_time.format("%H:%M:%S").to_string();
+                            html! {
+                                <div key={id.to_string()} class="message-wrapper system">
+                                    <div class="system-message">
+                                        { format!("{} has joined", username) }
+                                        <span class="time">{ format!(" ({})", time_str) }</span>
+                                    </div>
+                                </div>
+                            }
+                        }
                     }
                 }) }
             </div>

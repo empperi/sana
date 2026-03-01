@@ -9,13 +9,11 @@ pub struct SidebarProps {
     pub unread_channels: HashSet<String>,
     pub connection_status: ConnectionStatus,
     pub on_switch_channel: Callback<String>,
-    pub on_create_channel: Callback<String>,
+    pub on_open_join_modal: Callback<bool>, // true if create mode
 }
 
 #[function_component(Sidebar)]
 pub fn sidebar(props: &SidebarProps) -> Html {
-    let new_channel_input = use_state(String::new);
-
     let status_class = match props.connection_status {
         ConnectionStatus::Connected => "status-connected",
         ConnectionStatus::Disconnected => "status-disconnected",
@@ -26,28 +24,6 @@ pub fn sidebar(props: &SidebarProps) -> Html {
         ConnectionStatus::Connected => "Connected",
         ConnectionStatus::Disconnected => "Offline",
         ConnectionStatus::Reconnecting => "Connecting...",
-    };
-
-    let on_channel_input = {
-        let new_channel_input = new_channel_input.clone();
-        Callback::from(move |e: InputEvent| {
-            let input: web_sys::HtmlInputElement = e.target_unchecked_into();
-            new_channel_input.set(input.value());
-        })
-    };
-
-    let create_channel = {
-        let new_channel_input = new_channel_input.clone();
-        let on_create_channel = props.on_create_channel.clone();
-
-        Callback::from(move |e: SubmitEvent| {
-            e.prevent_default();
-            let name = (*new_channel_input).clone();
-            if !name.is_empty() {
-                on_create_channel.emit(name);
-                new_channel_input.set(String::new());
-            }
-        })
     };
 
     html! {
@@ -62,6 +38,16 @@ pub fn sidebar(props: &SidebarProps) -> Html {
                     </div>
                 </div>
             </div>
+
+            <div class="sidebar-actions">
+                <button class="browse-button" onclick={let on_open = props.on_open_join_modal.clone(); move |_| on_open.emit(false)}>
+                    { "Browse Channels" }
+                </button>
+                <button class="create-button" onclick={let on_open = props.on_open_join_modal.clone(); move |_| on_open.emit(true)}>
+                    { "+" }
+                </button>
+            </div>
+
             <ul class="channel-list">
                 { for props.channels.iter().map(|channel| {
                     let channel_name = channel.clone();
@@ -85,15 +71,6 @@ pub fn sidebar(props: &SidebarProps) -> Html {
                     }
                 }) }
             </ul>
-            <form class="new-channel-form" onsubmit={create_channel}>
-                <input
-                    type="text"
-                    placeholder="New channel..."
-                    value={(*new_channel_input).clone()}
-                    oninput={on_channel_input}
-                />
-                <button type="submit">{ "+" }</button>
-            </form>
         </div>
     }
 }

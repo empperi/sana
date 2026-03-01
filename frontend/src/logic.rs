@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use crate::types::{ChatMessage, Channel};
+use crate::types::{ChatMessage, Channel, ChannelEntry};
 use crate::services::websocket::ConnectionStatus;
 use uuid::Uuid;
 
@@ -11,7 +11,7 @@ pub struct ChatState {
     pub current_channel: String,
     pub username: String,
     pub user_id: Uuid,
-    pub messages: HashMap<String, Vec<ChatMessage>>,
+    pub messages: HashMap<String, Vec<ChannelEntry>>,
     pub unread_channels: HashSet<String>,
     pub connection_status: ConnectionStatus,
 }
@@ -35,14 +35,37 @@ impl ChatState {
         }
     }
 
-    pub fn handle_message(&mut self, channel: String, msg: ChatMessage) {
+    pub fn handle_message(&mut self, channel: String, entry: ChannelEntry) {
         let messages = self.messages.entry(channel.clone()).or_insert_with(Vec::new);
         
+        let entry_id = match &entry {
+            ChannelEntry::Message(m) => m.id,
+            ChannelEntry::UserJoined { id, .. } => *id,
+        };
+
         // Update pending message or add new one.
-        if let Some(pos) = messages.iter().position(|m| m.id == msg.id && m.pending) {
-            messages[pos] = msg;
-        } else if !messages.iter().any(|m| m.id == msg.id) {
-            messages.push(msg);
+        if let ChannelEntry::Message(ref msg) = entry {
+            if let Some(pos) = messages.iter().position(|e| {
+                if let ChannelEntry::Message(m) = e {
+                    m.id == msg.id && m.pending
+                } else {
+                    false
+                }
+            }) {
+                messages[pos] = entry;
+                return;
+            }
+        }
+
+        // Idempotency: only add if we don't have this entry ID yet
+        if !messages.iter().any(|e| {
+            let id = match e {
+                ChannelEntry::Message(m) => m.id,
+                ChannelEntry::UserJoined { id, .. } => *id,
+            };
+            id == entry_id
+        }) {
+            messages.push(entry);
             
             if channel != self.current_channel {
                 self.unread_channels.insert(channel);
@@ -53,19 +76,20 @@ impl ChatState {
     pub fn handle_system_message(&mut self, body: String) -> Option<String> {
         if let Ok(channel) = serde_json::from_str::<Channel>(&body) {
             let name = channel.name.clone();
-            let is_new = !self.channels.contains(&name);
+            let is_already_joined = self.channels.contains(&name);
             let is_pending = self.pending_channels.contains(&name);
 
-            if is_new || is_pending {
-                if is_new {
-                    self.channels.push(name.clone());
-                }
-                self.channel_id_map.insert(name.clone(), channel.id);
+            // Update metadata map regardless
+            self.channel_id_map.insert(name.clone(), channel.id);
+
+            if is_pending {
+                // If it was a channel we just created, keep it in the list and clear pending status
                 self.pending_channels.remove(&name);
-                
-                if is_new {
-                    return Some(name);
-                }
+                return None; 
+            }
+
+            if !is_already_joined {
+                return None;
             }
         }
         None
@@ -96,6 +120,13 @@ impl ChatState {
         }
     }
 
+    pub fn join_channel(&mut self, channel: Channel) {
+        if !self.channels.contains(&channel.name) {
+            self.channels.push(channel.name.clone());
+            self.channel_id_map.insert(channel.name, channel.id);
+        }
+    }
+
     pub fn add_pending_channel(&mut self, name: String) {
         if !self.channels.contains(&name) {
             self.channels.push(name.clone());
@@ -105,6 +136,6 @@ impl ChatState {
 
     pub fn add_pending_message(&mut self, channel: String, msg: ChatMessage) {
         let messages = self.messages.entry(channel).or_insert_with(Vec::new);
-        messages.push(msg);
+        messages.push(ChannelEntry::Message(msg));
     }
 }

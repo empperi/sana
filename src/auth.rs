@@ -110,6 +110,11 @@ async fn register(
     }
 
     let user = users::create_user(&mut tx, &payload.username, &hashed_password).await.map_err(internal_error)?;
+    
+    // Join to #General
+    let general_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+    crate::db::channels::join_channel(&mut tx, user.id, general_id).await.map_err(internal_error)?;
+
     tx.commit().await.map_err(internal_error)?;
 
     let mut cookie = Cookie::new("session_id", user.id.to_string());

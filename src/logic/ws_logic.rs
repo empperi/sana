@@ -2,7 +2,7 @@ use crate::state::AppState;
 use crate::stomp::StompCommand;
 use bytes::Bytes;
 use uuid::Uuid;
-use crate::messages::ChatMessage;
+use crate::messages::{ChatMessage, ChannelEntry};
 
 #[derive(Debug, PartialEq)]
 pub enum WsAction {
@@ -58,27 +58,29 @@ pub async fn handle_subscribe(channel_name: String, last_seen_seq: Option<u64>, 
         send_initial_channels(state, tx_internal).await;
     } else {
         // Send missed messages
-        let messages = state.message_store.get_messages(&channel_name);
-        for msg in messages {
-            let should_send = match (msg.seq, last_seen_seq) {
-                (Some(seq), Some(last_seq)) => seq > last_seq,
-                _ => true, // If we don't have seqs to compare, send it (frontend idempotency will handle duplicates)
+        let entries = state.message_store.get_entries(&channel_name);
+        for entry in entries {
+            let (seq, _entry_id) = match &entry {
+                ChannelEntry::Message(m) => (m.seq, m.id),
+                ChannelEntry::UserJoined { id, .. } => (None, *id),
+            };
+
+            let should_send = match (seq, last_seen_seq) {
+                (Some(s), Some(last)) => s > last,
+                _ => true, 
             };
             
             if should_send {
-                if let Ok(msg_json) = serde_json::to_string(&msg) {
-                    let seq_header = msg.seq.map(|s| format!("seq:{}\n", s)).unwrap_or_default();
-                    let stomp_msg = format!("MESSAGE\ndestination:/topic/{}\n{}\n{}\0", channel_name, seq_header, msg_json);
+                if let Ok(entry_json) = serde_json::to_string(&entry) {
+                    let seq_header = seq.map(|s| format!("seq:{}\n", s)).unwrap_or_default();
+                    let stomp_msg = format!("MESSAGE\ndestination:/topic/{}\n{}\n{}\0", channel_name, seq_header, entry_json);
                     let _ = tx_internal.send(stomp_msg).await;
                 }
             }
         }
     }
 
-    // Setup broadcast channel and listener.
-    // Since the global nats.rs subscriber now uses DeliverPolicy::All,
-    // it will replay all history into this broadcast channel upon backend start.
-    // Reconnecting clients will pick up everything they missed.
+    // Setup broadcast channel and listener
     let tx = get_or_create_broadcast_channel(&channel_name, state);
     subscribe_to_broadcast(channel_name.clone(), tx, tx_internal).await;
 }
@@ -142,8 +144,11 @@ async fn subscribe_to_broadcast(channel_name: String, tx: tokio::sync::broadcast
     tokio::spawn(async move {
         while let Ok(msg_json) = rx.recv().await {
             // Extract seq from JSON if possible to add as header
-            let seq_header = if let Ok(msg) = serde_json::from_str::<ChatMessage>(&msg_json) {
-                msg.seq.map(|s| format!("seq:{}\n", s)).unwrap_or_default()
+            let seq_header = if let Ok(entry) = serde_json::from_str::<ChannelEntry>(&msg_json) {
+                match entry {
+                    ChannelEntry::Message(m) => m.seq.map(|s| format!("seq:{}\n", s)).unwrap_or_default(),
+                    _ => "".to_string(),
+                }
             } else {
                 "".to_string()
             };
@@ -182,7 +187,9 @@ pub async fn process_and_publish_message(
         seq: None,
     };
 
-    if let Ok(json_body) = serde_json::to_string(&chat_msg) {
+    let entry = ChannelEntry::Message(chat_msg);
+
+    if let Ok(json_body) = serde_json::to_string(&entry) {
         publish_to_nats(subject, json_body, state).await;
     }
 }

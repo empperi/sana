@@ -77,10 +77,18 @@ async fn handle_message(message: async_nats::jetstream::message::Message, state:
             let _ = message.ack().await;
         }
     } else {
-        if let Ok(chat_msg) = serde_json::from_str::<ChatMessage>(&payload) {
-            archive_chat_message(sequence, chat_msg, message, state).await;
+        if let Ok(entry) = serde_json::from_str::<crate::messages::ChannelEntry>(&payload) {
+            match entry {
+                crate::messages::ChannelEntry::Message(chat_msg) => {
+                    archive_chat_message(sequence, chat_msg, message, state).await;
+                },
+                _ => {
+                    // Skip archiving system notifications (joins, etc)
+                    let _ = message.ack().await;
+                }
+            }
         } else {
-            tracing::warn!("Archiver: Failed to parse message, acking and skipping: {}", payload);
+            tracing::warn!("Archiver: Failed to parse entry, acking and skipping: {}", payload);
             let _ = message.ack().await;
         }
     }

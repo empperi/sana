@@ -38,9 +38,13 @@ The backend uses a combination of `.env` files and `config.json` for configurati
 Create a `.env` file in the root directory for your local database and NATS connection:
 
 ```env
-DATABASE_URL=postgres://sana_user:sana_password@localhost:5432/sana_db
-NATS_URL=nats://localhost:4222
+DATABASE_URL=postgres://sana_user:sana_password@127.0.0.1:5432/sana_db
+NATS_URL=nats://127.0.0.1:4222
+# Generate a 64-byte hex key for stable sessions: openssl rand -hex 64
+COOKIE_KEY=000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f
 ```
+
+**Note:** If `COOKIE_KEY` is not provided, the server will generate a new random key on every startup, which will invalidate all existing session cookies in your browser. Using a stable key in development prevents unexpected 401 Unauthorized errors when the backend restarts.
 
 ### Running the Backend
 

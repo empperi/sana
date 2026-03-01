@@ -2,7 +2,7 @@ use futures::{SinkExt, StreamExt, Sink, Stream, FutureExt};
 use gloo_net::websocket::{futures::WebSocket, Message, WebSocketError};
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
-use crate::types::ChatMessage;
+use crate::types::ChannelEntry;
 use std::rc::Rc;
 use std::cell::RefCell;
 use gloo_timers::future::TimeoutFuture;
@@ -23,6 +23,7 @@ pub trait StompClient {
 
 pub struct WebSocketService {
     tx: futures::channel::mpsc::Sender<String>,
+    stop_tx: futures::channel::mpsc::Sender<()>,
 }
 
 impl StompClient for WebSocketService {
@@ -34,7 +35,7 @@ impl StompClient for WebSocketService {
     }
 }
 
-type MsgCallback = Callback<(String, ChatMessage)>;
+type MsgCallback = Callback<(String, ChannelEntry)>;
 type SysMsgCallback = Callback<(String, String)>;
 type ConnectedCallback = Callback<(String, Uuid)>;
 type StatusCallback = Callback<ConnectionStatus>;
@@ -47,6 +48,7 @@ impl WebSocketService {
         on_status_change: StatusCallback,
     ) -> Self {
         let (tx, mut rx) = futures::channel::mpsc::channel::<String>(100);
+        let (stop_tx, mut stop_rx) = futures::channel::mpsc::channel::<()>(1);
         let outgoing_buffer = Rc::new(RefCell::new(Vec::<String>::new()));
 
         let outgoing_buffer_clone = outgoing_buffer.clone();
@@ -58,37 +60,57 @@ impl WebSocketService {
             let ws_url = format!("{}//{}/ws", protocol, host);
             
             loop {
+                // Check if we should stop before trying to connect
+                if stop_rx.try_recv().is_ok() { break; }
+
                 on_status_change.emit(ConnectionStatus::Reconnecting);
                 if let Ok(ws) = WebSocket::open(&ws_url) {
                     let (write, read) = ws.split();
-                    Self::connection_loop(
-                        write, read, &mut rx, outgoing_buffer_clone.clone(),
-                        &on_message, &on_system_message, &on_connected, &on_status_change
-                    ).await;
+                    
+                    let mut connection_stopped = false;
+                    futures::select! {
+                        _ = Self::connection_loop(
+                            write, read, &mut rx, outgoing_buffer_clone.clone(),
+                            &on_message, &on_system_message, &on_connected, &on_status_change
+                        ).fuse() => {},
+                        _ = stop_rx.next() => {
+                            connection_stopped = true;
+                        }
+                    }
+                    if connection_stopped { break; }
                 }
+                
                 on_status_change.emit(ConnectionStatus::Disconnected);
-                Self::downtime_drain_loop(&mut rx, outgoing_buffer_clone.clone()).await;
+                
+                // Wait 2s or stop
+                let mut timer = TimeoutFuture::new(2000).fuse();
+                let mut stopped = false;
+                loop {
+                    futures::select! {
+                        _ = timer => break,
+                        _ = stop_rx.next() => {
+                            stopped = true;
+                            break;
+                        }
+                        out_msg = rx.next() => {
+                            if let Some(text) = out_msg {
+                                outgoing_buffer_clone.borrow_mut().push(text);
+                            }
+                        }
+                    }
+                }
+                if stopped { break; }
             }
         });
 
-        Self { tx }
+        Self { tx, stop_tx }
     }
 
-    async fn downtime_drain_loop(
-        rx: &mut futures::channel::mpsc::Receiver<String>,
-        outgoing_buffer: Rc<RefCell<Vec<String>>>
-    ) {
-        let mut timer = TimeoutFuture::new(2000).fuse();
-        loop {
-            futures::select! {
-                _ = timer => break,
-                out_msg = rx.next() => {
-                    if let Some(text) = out_msg {
-                        outgoing_buffer.borrow_mut().push(text);
-                    }
-                }
-            }
-        }
+    pub fn stop(&self) {
+        let mut stop_tx = self.stop_tx.clone();
+        spawn_local(async move {
+            let _ = stop_tx.send(()).await;
+        });
     }
 
     pub async fn connection_loop<W, R>(
@@ -278,9 +300,11 @@ fn handle_incoming_frame(
             if let Some(channel_name) = destination.strip_prefix("/topic/") {
                 if channel_name == "system.channels" {
                     on_system_message.emit((channel_name.to_string(), body));
-                } else if let Ok(mut chat_msg) = serde_json::from_str::<ChatMessage>(&body) {
-                    if seq.is_some() { chat_msg.seq = seq; }
-                    on_message.emit((channel_name.to_string(), chat_msg));
+                } else if let Ok(mut entry) = serde_json::from_str::<ChannelEntry>(&body) {
+                    if let ChannelEntry::Message(ref mut chat_msg) = entry {
+                        if seq.is_some() { chat_msg.seq = seq; }
+                    }
+                    on_message.emit((channel_name.to_string(), entry));
                 }
             }
         }

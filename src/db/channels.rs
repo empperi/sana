@@ -70,3 +70,63 @@ pub async fn get_all_channels(
 
     Ok(channels)
 }
+
+pub async fn join_channel(
+    tx: &mut Transaction<'_, Postgres>,
+    user_id: Uuid,
+    channel_id: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "INSERT INTO channel_joins (user_id, channel_id) 
+         VALUES ($1, $2) 
+         ON CONFLICT DO NOTHING"
+    )
+    .bind(user_id)
+    .bind(channel_id)
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn get_user_channels(
+    pool: &sqlx::PgPool,
+    user_id: Uuid,
+) -> Result<Vec<Channel>, sqlx::Error> {
+    let channels = sqlx::query_as::<_, Channel>(
+        "SELECT c.id, c.name, c.is_private, c.created_at 
+         FROM channels c
+         JOIN channel_joins cj ON c.id = cj.channel_id
+         WHERE cj.user_id = $1
+         ORDER BY c.name ASC"
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(channels)
+}
+
+pub async fn search_unjoined_channels(
+    pool: &sqlx::PgPool,
+    user_id: Uuid,
+    query: &str,
+    limit: i64,
+) -> Result<Vec<Channel>, sqlx::Error> {
+    let search_pattern = format!("%{}%", query);
+    let channels = sqlx::query_as::<_, Channel>(
+        "SELECT id, name, is_private, created_at 
+         FROM channels 
+         WHERE id NOT IN (SELECT channel_id FROM channel_joins WHERE user_id = $1)
+         AND name ILIKE $2
+         ORDER BY name ASC
+         LIMIT $3"
+    )
+    .bind(user_id)
+    .bind(search_pattern)
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(channels)
+}

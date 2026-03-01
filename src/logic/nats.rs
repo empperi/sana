@@ -1,6 +1,5 @@
 use futures::StreamExt;
 use crate::state::AppState;
-use crate::messages::ChatMessage;
 
 pub async fn start_nats_subscriber(state: AppState) {
     let jetstream = state.jetstream.clone();
@@ -68,17 +67,20 @@ async fn handle_system_channels_message(payload: String, state: &AppState) {
 }
 
 async fn handle_chat_message(channel_name: String, payload: String, sequence: u64, state: &AppState) {
-    if let Ok(mut chat_msg) = serde_json::from_str::<ChatMessage>(&payload) {
-        chat_msg.seq = Some(sequence);
-        state.message_store.add_message(&channel_name, chat_msg.clone());
+    if let Ok(mut entry) = serde_json::from_str::<crate::messages::ChannelEntry>(&payload) {
+        if let crate::messages::ChannelEntry::Message(ref mut chat_msg) = entry {
+            chat_msg.seq = Some(sequence);
+        }
 
-        if let Ok(final_payload) = serde_json::to_string(&chat_msg) {
+        state.message_store.add_entry(&channel_name, entry.clone());
+
+        if let Ok(final_payload) = serde_json::to_string(&entry) {
             let channels = state.channels.lock().unwrap();
             if let Some(tx) = channels.get(&channel_name) {
                 let _ = tx.send(final_payload);
             }
         }
     } else {
-        tracing::warn!("Failed to parse message from NATS: {}", payload);
+        tracing::warn!("Failed to parse entry from NATS: {}", payload);
     }
 }

@@ -15,9 +15,22 @@ pub struct ChatMessage {
     pub seq: Option<u64>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(tag = "type", content = "data")]
+pub enum ChannelEntry {
+    #[serde(rename = "chat")]
+    Message(ChatMessage),
+    #[serde(rename = "join")]
+    UserJoined {
+        id: Uuid,
+        username: String,
+        timestamp: DateTime<Utc>,
+    }
+}
+
 pub struct MessageStore {
-    // Map of channel_name -> List of messages
-    messages: Mutex<HashMap<String, Vec<ChatMessage>>>,
+    // Map of channel_name -> List of entries
+    messages: Mutex<HashMap<String, Vec<ChannelEntry>>>,
 }
 
 impl MessageStore {
@@ -27,29 +40,45 @@ impl MessageStore {
         }
     }
 
-    pub fn add_message(&self, channel: &str, message: ChatMessage) {
+    pub fn add_entry(&self, channel: &str, entry: ChannelEntry) {
         let mut store = self.messages.lock().unwrap();
-        let channel_messages = store.entry(channel.to_string()).or_insert_with(Vec::new);
+        let channel_entries = store.entry(channel.to_string()).or_insert_with(Vec::new);
 
-        // Check if message with same ID already exists (idempotency)
-        if !channel_messages.iter().any(|m| m.id == message.id) {
-            channel_messages.push(message);
+        let entry_id = match &entry {
+            ChannelEntry::Message(m) => m.id,
+            ChannelEntry::UserJoined { id, .. } => *id,
+        };
+
+        // Idempotency check
+        if !channel_entries.iter().any(|e| {
+            let id = match e {
+                ChannelEntry::Message(m) => m.id,
+                ChannelEntry::UserJoined { id, .. } => *id,
+            };
+            id == entry_id
+        }) {
+            channel_entries.push(entry);
         }
     }
 
-    pub fn get_messages(&self, channel: &str) -> Vec<ChatMessage> {
+    pub fn get_entries(&self, channel: &str) -> Vec<ChannelEntry> {
         let store = self.messages.lock().unwrap();
         store.get(channel).cloned().unwrap_or_default()
     }
 
-    pub fn get_messages_after(&self, channel: &str, last_id: Uuid) -> Vec<ChatMessage> {
+    pub fn get_entries_after(&self, channel: &str, last_id: Uuid) -> Vec<ChannelEntry> {
         let store = self.messages.lock().unwrap();
-        if let Some(msgs) = store.get(channel) {
-            if let Some(pos) = msgs.iter().position(|m| m.id == last_id) {
-                return msgs[pos + 1..].to_vec();
+        if let Some(entries) = store.get(channel) {
+            if let Some(pos) = entries.iter().position(|e| {
+                let id = match e {
+                    ChannelEntry::Message(m) => m.id,
+                    ChannelEntry::UserJoined { id, .. } => *id,
+                };
+                id == last_id
+            }) {
+                return entries[pos + 1..].to_vec();
             }
-            // If ID not found, return all (might be safer if history is short)
-            return msgs.clone();
+            return entries.clone();
         }
         Vec::new()
     }

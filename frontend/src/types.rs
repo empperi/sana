@@ -16,6 +16,19 @@ pub struct ChatMessage {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(tag = "type", content = "data")]
+pub enum ChannelEntry {
+    #[serde(rename = "chat")]
+    Message(ChatMessage),
+    #[serde(rename = "join")]
+    UserJoined {
+        id: Uuid,
+        username: String,
+        timestamp: DateTime<Utc>,
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Channel {
     pub id: Uuid,
     pub name: String,

@@ -1,5 +1,5 @@
 use frontend::logic::*;
-use frontend::types::{ChatMessage, Channel};
+use frontend::types::{ChatMessage, Channel, ChannelEntry};
 use uuid::Uuid;
 use chrono::Utc;
 
@@ -23,10 +23,11 @@ fn test_handle_message_current_channel() {
         pending: false,
         seq: None,
     };
+    let entry = ChannelEntry::Message(msg.clone());
     
-    state.handle_message("General".to_string(), msg.clone());
+    state.handle_message("General".to_string(), entry.clone());
     
-    assert_eq!(state.messages.get("General").unwrap()[0], msg);
+    assert_eq!(state.messages.get("General").unwrap()[0], entry);
     assert!(state.unread_channels.is_empty());
 }
 
@@ -44,8 +45,9 @@ fn test_handle_message_other_channel() {
         pending: false,
         seq: None,
     };
+    let entry = ChannelEntry::Message(msg);
     
-    state.handle_message("other".to_string(), msg);
+    state.handle_message("other".to_string(), entry);
     
     assert!(state.unread_channels.contains("other"));
 }
@@ -59,7 +61,7 @@ fn test_switch_channel_clears_unread() {
 }
 
 #[test]
-fn test_handle_system_message_adds_channel() {
+fn test_handle_system_message_updates_metadata_only() {
     let mut state = ChatState::new();
     let channel = Channel {
         id: Uuid::new_v4(),
@@ -70,8 +72,11 @@ fn test_handle_system_message_adds_channel() {
     let payload = serde_json::to_string(&channel).unwrap();
     let result = state.handle_system_message(payload);
     
-    assert_eq!(result, Some("new-room".to_string()));
-    assert!(state.channels.contains(&"new-room".to_string()));
+    // Should NOT return a channel name for subscription
+    assert_eq!(result, None);
+    // Should NOT be in the sidebar channels list
+    assert!(!state.channels.contains(&"new-room".to_string()));
+    // SHOULD be in the metadata map for when the user decides to join
     assert_eq!(state.channel_id_map.get("new-room"), Some(&channel.id));
 }
 
@@ -84,7 +89,6 @@ fn test_channel_creation_pending_and_confirmation() {
     state.add_pending_channel(channel_name.clone());
     assert!(state.channels.contains(&channel_name));
     assert!(state.pending_channels.contains(&channel_name));
-    assert!(state.channel_id_map.get(&channel_name).is_none());
 
     // 2. Backend confirms channel via NATS/STOMP
     let confirmed_id = Uuid::new_v4();
@@ -97,7 +101,7 @@ fn test_channel_creation_pending_and_confirmation() {
     let payload = serde_json::to_string(&channel).unwrap();
     let result = state.handle_system_message(payload);
 
-    // 3. State should be updated, but result should be None because we already have it (no new subscription needed)
+    // 3. State should be updated, but result should be None because we already have it
     assert_eq!(result, None);
     assert!(state.channels.contains(&channel_name));
     assert!(!state.pending_channels.contains(&channel_name));
@@ -138,6 +142,22 @@ fn test_set_channels() {
 }
 
 #[test]
+fn test_join_channel() {
+    let mut state = ChatState::new();
+    let c1 = Channel {
+        id: Uuid::new_v4(),
+        name: "new-joined".to_string(),
+        is_private: false,
+        created_at: Utc::now(),
+    };
+    
+    state.join_channel(c1.clone());
+    
+    assert!(state.channels.contains(&"new-joined".to_string()));
+    assert_eq!(state.channel_id_map.get("new-joined"), Some(&c1.id));
+}
+
+#[test]
 fn test_pending_message_replacement_different_user_id() {
     let mut state = ChatState::new();
     let msg_id = Uuid::new_v4();
@@ -154,7 +174,7 @@ fn test_pending_message_replacement_different_user_id() {
     state.add_pending_message("General".to_string(), pending);
     
     // On reconnect, we might get a different user_id
-    let confirmed = ChatMessage {
+    let confirmed_msg = ChatMessage {
         id: msg_id,
         channel_id: Uuid::new_v4(),
         user_id: Uuid::new_v4(),
@@ -164,11 +184,17 @@ fn test_pending_message_replacement_different_user_id() {
         pending: false,
         seq: None,
     };
-    state.handle_message("General".to_string(), confirmed.clone());
+    let confirmed_entry = ChannelEntry::Message(confirmed_msg.clone());
+    state.handle_message("General".to_string(), confirmed_entry.clone());
     
-    let msgs = state.messages.get("General").unwrap();
-    assert_eq!(msgs.len(), 1);
-    assert_eq!(msgs[0], confirmed);
-    assert!(!msgs[0].pending);
-    assert_eq!(msgs[0].user, "User1111");
+    let entries = state.messages.get("General").unwrap();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0], confirmed_entry);
+    
+    if let ChannelEntry::Message(ref m) = entries[0] {
+        assert!(!m.pending);
+        assert_eq!(m.user, "User1111");
+    } else {
+        panic!("Expected Message variant");
+    }
 }

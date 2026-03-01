@@ -17,13 +17,30 @@ pub async fn ws_handler(
     jar: SignedCookieJar,
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let cookie = jar.get("session_id").ok_or(StatusCode::UNAUTHORIZED)?;
+    let cookie = match jar.get("session_id") {
+        Some(c) => c,
+        None => {
+            tracing::warn!("WebSocket: Session cookie missing or invalid signature");
+            return Err(StatusCode::UNAUTHORIZED);
+        }
+    };
     let user_id_str = cookie.value();
-    let user_id = Uuid::parse_str(user_id_str).map_err(|_| StatusCode::UNAUTHORIZED)?;
+    let user_id = match Uuid::parse_str(user_id_str) {
+        Ok(id) => id,
+        Err(_) => {
+            tracing::warn!("WebSocket: Invalid user_id in session cookie: {}", user_id_str);
+            return Err(StatusCode::UNAUTHORIZED);
+        }
+    };
 
     let mut tx = state.db_pool.begin().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let user = users::get_user_by_id(&mut tx, user_id).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let user = match users::get_user_by_id(&mut tx, user_id).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)? {
+        Some(u) => u,
+        None => {
+            tracing::warn!("WebSocket: User not found for session user_id: {}", user_id);
+            return Err(StatusCode::UNAUTHORIZED);
+        }
+    };
 
     Ok(ws.on_upgrade(move |socket| handle_socket(socket, state, user.id, user.username)))
 }

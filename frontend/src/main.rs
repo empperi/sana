@@ -10,8 +10,9 @@ use web_sys::RequestCredentials;
 use frontend::components::sidebar::Sidebar;
 use frontend::components::chat_window::ChatWindow;
 use frontend::components::auth::{Login, Register};
+use frontend::components::join_channel_modal::JoinChannelModal;
 use frontend::services::websocket::{WebSocketService, ConnectionStatus, StompClient};
-use frontend::types::ChatMessage;
+use frontend::types::{ChatMessage, ChannelEntry};
 use frontend::logic::ChatState;
 use frontend::stomp;
 use frontend::Route;
@@ -76,6 +77,9 @@ pub fn chat_app() -> Html {
         });
     }
 
+    let is_join_modal_open = use_state(|| false);
+    let is_modal_create_mode = use_state(|| false);
+
     // Initialize WebSocket
     {
         let chat_state = chat_state.clone();
@@ -93,7 +97,13 @@ pub fn chat_app() -> Html {
                 let service = Rc::new(WebSocketService::connect(on_message, on_system_message, on_connected, on_status_change));
                 *ws_service_ref.borrow_mut() = Some(service);
             }
-            || {}
+            
+            let ws_service_ref = ws_service_ref.clone();
+            move || {
+                if let Some(service) = ws_service_ref.borrow_mut().take() {
+                    service.stop();
+                }
+            }
         });
     }
 
@@ -148,6 +158,7 @@ pub fn chat_app() -> Html {
         let state_ref = state_ref.clone();
         let ws_service = ws_service.clone();
         let on_switch_channel = on_switch_channel.clone();
+        let is_join_modal_open = is_join_modal_open.clone();
         Callback::from(move |name: String| {
             let mut state = (*state_ref.borrow()).clone();
             if !state.channels.contains(&name) {
@@ -157,6 +168,7 @@ pub fn chat_app() -> Html {
                 }
                 *state_ref.borrow_mut() = state.clone();
                 chat_state.set(state);
+                is_join_modal_open.set(false);
                 on_switch_channel.emit(name);
             }
         })
@@ -171,17 +183,87 @@ pub fn chat_app() -> Html {
         })
     };
 
+    let on_open_join_modal = {
+        let is_join_modal_open = is_join_modal_open.clone();
+        let is_modal_create_mode = is_modal_create_mode.clone();
+        Callback::from(move |create_mode: bool| {
+            is_modal_create_mode.set(create_mode);
+            is_join_modal_open.set(true);
+        })
+    };
+
+    let on_close_join_modal = {
+        let is_join_modal_open = is_join_modal_open.clone();
+        Callback::from(move |_| is_join_modal_open.set(false))
+    };
+
+    let on_join_channel = {
+        let chat_state = chat_state.clone();
+        let state_ref = state_ref.clone();
+        let ws_service = ws_service.clone();
+        let is_join_modal_open = is_join_modal_open.clone();
+        let on_switch_channel = on_switch_channel.clone();
+
+        Callback::from(move |channel: frontend::types::Channel| {
+            let chat_state = chat_state.clone();
+            let state_ref = state_ref.clone();
+            let ws_service = ws_service.clone();
+            let is_join_modal_open = is_join_modal_open.clone();
+            let on_switch_channel = on_switch_channel.clone();
+            let channel_to_join = channel.clone();
+
+            wasm_bindgen_futures::spawn_local(async move {
+                let payload = serde_json::json!({
+                    "channel_id": channel_to_join.id
+                });
+
+                let resp = Request::post("/api/channels/join")
+                    .credentials(RequestCredentials::Include)
+                    .json(&payload)
+                    .unwrap()
+                    .send()
+                    .await;
+
+                if let Ok(r) = resp {
+                    if r.status() == 200 {
+                        let mut state = (*state_ref.borrow()).clone();
+                        state.join_channel(channel_to_join.clone());
+                        
+                        if let Some(service) = &*ws_service.borrow() {
+                            service.send(stomp::create_subscribe_frame(&channel_to_join.name, None, None));
+                        }
+
+                        *state_ref.borrow_mut() = state.clone();
+                        chat_state.set(state);
+                        is_join_modal_open.set(false);
+                        on_switch_channel.emit(channel_to_join.name);
+                    }
+                }
+            });
+        })
+    };
+
     if !*auth_check_done {
         return html! { <div>{ "Loading..." }</div> };
     }
 
-    render_app(&chat_state, on_switch_channel, on_create_channel, on_send_message)
+    render_app(
+        &chat_state, 
+        on_switch_channel, 
+        on_create_channel, 
+        on_send_message,
+        on_open_join_modal,
+        *is_join_modal_open,
+        *is_modal_create_mode,
+        on_close_join_modal,
+        on_join_channel
+    )
 }
 
-fn create_on_message_callback(chat_state: UseStateHandle<ChatState>, state_ref: Rc<RefCell<ChatState>>) -> Callback<(String, ChatMessage)> {
-    Callback::from(move |(channel, msg)| {
+fn create_on_message_callback(chat_state: UseStateHandle<ChatState>, state_ref: Rc<RefCell<ChatState>>) -> Callback<(String, ChannelEntry)> {
+    Callback::from(move |(channel, entry)| {
         let mut state = (*state_ref.borrow()).clone();
-        state.handle_message(channel, msg);
+        state.handle_message(channel, entry);
         *state_ref.borrow_mut() = state.clone();
         chat_state.set(state);
     })
@@ -240,8 +322,14 @@ fn create_on_status_change_callback(
 
 fn sync_subscriptions_on_connect(service: &Rc<WebSocketService>, state: &ChatState) {
     service.send(stomp::create_subscribe_frame("system.channels", None, None));
-    for (channel, msgs) in &state.messages {
-        let last_seq = msgs.iter().rev().find_map(|m| m.seq);
+    for (channel, entries) in &state.messages {
+        let last_seq = entries.iter().rev().find_map(|e| {
+            if let ChannelEntry::Message(m) = e {
+                m.seq
+            } else {
+                None
+            }
+        });
         service.send(stomp::create_subscribe_frame(channel, None, last_seq));
     }
     for channel in &state.channels {
@@ -287,7 +375,12 @@ fn render_app(
     chat_state: &UseStateHandle<ChatState>,
     on_switch_channel: Callback<String>,
     on_create_channel: Callback<String>,
-    on_send_message: Callback<String>
+    on_send_message: Callback<String>,
+    on_open_join_modal: Callback<bool>,
+    is_join_modal_open: bool,
+    is_modal_create_mode: bool,
+    on_close_join_modal: Callback<()>,
+    on_join_channel: Callback<frontend::types::Channel>,
 ) -> Html {
     let messages = chat_state.messages
         .get(&chat_state.current_channel)
@@ -296,19 +389,26 @@ fn render_app(
 
     html! {
         <div class="app-container">
-            <Sidebar
-                channels={chat_state.channels.clone()}
+            <Sidebar 
+                channels={chat_state.channels.clone()} 
                 current_channel={chat_state.current_channel.clone()}
                 unread_channels={chat_state.unread_channels.clone()}
                 connection_status={chat_state.connection_status}
                 on_switch_channel={on_switch_channel}
-                on_create_channel={on_create_channel}
+                on_open_join_modal={on_open_join_modal}
             />
-            <ChatWindow
+            <ChatWindow 
                 current_channel={chat_state.current_channel.clone()}
                 messages={messages}
                 current_username={chat_state.username.clone()}
                 on_send_message={on_send_message}
+            />
+            <JoinChannelModal 
+                is_open={is_join_modal_open}
+                is_create_focus={is_modal_create_mode}
+                on_close={on_close_join_modal}
+                on_join={on_join_channel}
+                on_create={on_create_channel}
             />
         </div>
     }
