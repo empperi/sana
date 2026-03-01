@@ -11,6 +11,7 @@ pub struct ChatWindowProps {
     pub messages: Vec<ChannelEntry>,
     pub current_username: String,
     pub on_send_message: Callback<String>,
+    pub on_toggle_sidebar: Callback<()>,
 }
 
 #[function_component(ChatWindow)]

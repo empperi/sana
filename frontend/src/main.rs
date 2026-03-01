@@ -243,6 +243,21 @@ pub fn chat_app() -> Html {
         })
     };
 
+    let is_mobile_sidebar_open = use_state(|| false);
+
+    let on_toggle_sidebar = {
+        let is_mobile_sidebar_open = is_mobile_sidebar_open.clone();
+        Callback::from(move |_| {
+            let current = *is_mobile_sidebar_open;
+            is_mobile_sidebar_open.set(!current);
+        })
+    };
+
+    let on_close_sidebar = {
+        let is_mobile_sidebar_open = is_mobile_sidebar_open.clone();
+        Callback::from(move |_| is_mobile_sidebar_open.set(false))
+    };
+
     if !*auth_check_done {
         return html! { <div>{ "Loading..." }</div> };
     }
@@ -256,7 +271,10 @@ pub fn chat_app() -> Html {
         *is_join_modal_open,
         *is_modal_create_mode,
         on_close_join_modal,
-        on_join_channel
+        on_join_channel,
+        *is_mobile_sidebar_open,
+        on_toggle_sidebar,
+        on_close_sidebar
     )
 }
 
@@ -381,6 +399,9 @@ fn render_app(
     is_modal_create_mode: bool,
     on_close_join_modal: Callback<()>,
     on_join_channel: Callback<frontend::types::Channel>,
+    is_mobile_sidebar_open: bool,
+    on_toggle_sidebar: Callback<()>,
+    on_close_sidebar: Callback<()>,
 ) -> Html {
     let messages = chat_state.messages
         .get(&chat_state.current_channel)
@@ -389,6 +410,16 @@ fn render_app(
 
     html! {
         <div class="app-container">
+            <div class="mini-sidebar">
+                <img src="/assets/Sana_logo.webp" alt="Sana Logo" class="mini-logo" />
+                <button class="hamburger-menu" onclick={let on_toggle = on_toggle_sidebar.clone(); move |_| on_toggle.emit(())}>
+                    <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
             <Sidebar 
                 channels={chat_state.channels.clone()} 
                 current_channel={chat_state.current_channel.clone()}
@@ -396,12 +427,15 @@ fn render_app(
                 connection_status={chat_state.connection_status}
                 on_switch_channel={on_switch_channel}
                 on_open_join_modal={on_open_join_modal}
+                is_mobile_open={is_mobile_sidebar_open}
+                on_close_sidebar={on_close_sidebar}
             />
             <ChatWindow 
                 current_channel={chat_state.current_channel.clone()}
                 messages={messages}
                 current_username={chat_state.username.clone()}
                 on_send_message={on_send_message}
+                on_toggle_sidebar={on_toggle_sidebar}
             />
             <JoinChannelModal 
                 is_open={is_join_modal_open}
