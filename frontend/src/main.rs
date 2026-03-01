@@ -160,17 +160,42 @@ pub fn chat_app() -> Html {
         let on_switch_channel = on_switch_channel.clone();
         let is_join_modal_open = is_join_modal_open.clone();
         Callback::from(move |name: String| {
-            let mut state = (*state_ref.borrow()).clone();
-            if !state.channels.contains(&name) {
-                state.add_pending_channel(name.clone());
-                if let Some(service) = &*ws_service.borrow() {
-                    service.send(stomp::create_subscribe_frame(&name, None, None));
+            let chat_state = chat_state.clone();
+            let state_ref = state_ref.clone();
+            let ws_service = ws_service.clone();
+            let on_switch_channel = on_switch_channel.clone();
+            let is_join_modal_open = is_join_modal_open.clone();
+
+            wasm_bindgen_futures::spawn_local(async move {
+                let payload = serde_json::json!({
+                    "name": name
+                });
+
+                let resp = Request::post("/api/channels")
+                    .credentials(RequestCredentials::Include)
+                    .json(&payload)
+                    .unwrap()
+                    .send()
+                    .await;
+
+                if let Ok(r) = resp {
+                    if r.status() == 201 {
+                        if let Ok(channel) = r.json::<frontend::types::Channel>().await {
+                            let mut state = (*state_ref.borrow()).clone();
+                            state.join_channel(channel.clone());
+                            
+                            if let Some(service) = &*ws_service.borrow() {
+                                service.send(stomp::create_subscribe_frame(&channel.name, None, None));
+                            }
+
+                            *state_ref.borrow_mut() = state.clone();
+                            chat_state.set(state);
+                            is_join_modal_open.set(false);
+                            on_switch_channel.emit(channel.name);
+                        }
+                    }
                 }
-                *state_ref.borrow_mut() = state.clone();
-                chat_state.set(state);
-                is_join_modal_open.set(false);
-                on_switch_channel.emit(name);
-            }
+            });
         })
     };
 

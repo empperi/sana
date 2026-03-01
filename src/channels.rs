@@ -13,8 +13,14 @@ use uuid::Uuid;
 pub fn router() -> Router<CombinedState> {
     Router::new()
         .route("/", get(get_channels))
+        .route("/", post(create_channel))
         .route("/unjoined", get(get_unjoined_channels))
         .route("/join", post(join_channel))
+}
+
+#[derive(Deserialize)]
+struct CreateChannelPayload {
+    name: String,
 }
 
 #[derive(Deserialize)]
@@ -39,6 +45,38 @@ async fn get_channels(
         })?;
 
     Ok(Json(channels))
+}
+
+async fn create_channel(
+    session: UserSession,
+    State(state): State<AppState>,
+    Json(payload): Json<CreateChannelPayload>,
+) -> Result<(StatusCode, Json<channels::Channel>), StatusCode> {
+    let mut tx = state.db_pool.begin().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    let channel = channels::Channel {
+        id: Uuid::new_v4(),
+        name: payload.name,
+        is_private: false,
+        created_at: chrono::Utc::now(),
+    };
+
+    // 1. Insert channel
+    channels::insert_channel(&mut tx, &channel).await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // 2. Join creator
+    channels::join_channel(&mut tx, session.user_id, channel.id).await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    tx.commit().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // 3. Side effect: NATS notification for the new channel
+    if let Ok(json) = serde_json::to_string(&channel) {
+        let _ = state.nats_client.publish("topic.system.channels", bytes::Bytes::from(json)).await;
+    }
+
+    Ok((StatusCode::CREATED, Json(channel)))
 }
 
 async fn get_unjoined_channels(
@@ -74,8 +112,6 @@ async fn join_channel(
     tx.commit().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     // 3. Side effect: NATS notification
-    // We need the username. Let's get it from DB. 
-    // Optimization: we could store username in UserSession if we wanted.
     let mut tx = state.db_pool.begin().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let user = crate::db::users::get_user_by_id(&mut tx, session.user_id).await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?

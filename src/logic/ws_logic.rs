@@ -101,24 +101,13 @@ async fn send_initial_channels(state: &AppState, tx_internal: &tokio::sync::mpsc
 
 fn get_or_create_broadcast_channel(channel_name: &str, state: &AppState) -> tokio::sync::broadcast::Sender<String> {
     let mut channels = state.channels.lock().unwrap();
-    let mut channel_ids = state.channel_ids.lock().unwrap();
     
-    let is_new = !channels.contains_key(channel_name);
-    
-    let tx = channels.entry(channel_name.to_string())
+    channels.entry(channel_name.to_string())
         .or_insert_with(|| {
             let (tx, _rx) = tokio::sync::broadcast::channel(100);
             tx
         })
-        .clone();
-
-    if is_new && channel_name != "system.channels" {
-        let channel_id = *channel_ids.entry(channel_name.to_string())
-            .or_insert_with(Uuid::new_v4);
-            
-        publish_new_channel(channel_name, channel_id, &state.nats_client);
-    }
-    tx
+        .clone()
 }
 
 fn publish_new_channel(channel_name: &str, channel_id: Uuid, nats_client: &async_nats::Client) {

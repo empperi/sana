@@ -175,3 +175,51 @@ async fn test_join_channel_api() {
     let joined = db::channels::get_user_channels(&ctx.pool, user.id).await.unwrap();
     assert!(joined.iter().any(|c| c.id == c1.id));
 }
+
+#[tokio::test]
+async fn test_create_channel_api() {
+    let ctx = TestContext::new("sana_test_api_create").await;
+    let config = Config::load(None);
+    let nats_client = async_nats::connect(&config.nats_url).await.unwrap();
+    let jetstream = async_nats::jetstream::new(nats_client.clone());
+    
+    let key = Key::generate();
+    let app_state = AppState::new(nats_client, jetstream, ctx.pool.clone());
+    let combined_state = CombinedState {
+        app: app_state,
+        cookie_key: key.clone(),
+    };
+    let app = create_router(combined_state);
+
+    let mut tx = ctx.pool.begin().await.unwrap();
+    let user = db::users::create_user(&mut tx, "creator", "pass").await.unwrap();
+    tx.commit().await.unwrap();
+
+    let cookie = Cookie::new("session_id", user.id.to_string());
+    let signed_jar = axum_extra::extract::cookie::SignedCookieJar::new(key).add(cookie);
+    use axum::response::IntoResponse;
+    let cookie_header = signed_jar.into_response().headers().get("Set-Cookie").unwrap().to_str().unwrap().to_string();
+
+    let create_payload = serde_json::json!({
+        "name": "brand-new-channel"
+    });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/channels")
+                .header("Cookie", cookie_header)
+                .header("Content-Type", "application/json")
+                .body(axum::body::Body::from(serde_json::to_vec(&create_payload).unwrap()))
+                .unwrap()
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    // Verify channel exists AND user has joined
+    let joined = db::channels::get_user_channels(&ctx.pool, user.id).await.unwrap();
+    assert!(joined.iter().any(|c| c.name == "brand-new-channel"), "Creator should be automatically joined to the channel");
+}
