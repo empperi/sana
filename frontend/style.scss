@@ -1,16 +1,26 @@
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    height: 100dvh;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    position: fixed; /* Prevents the whole layout from sliding up when keyboard opens */
+    overscroll-behavior: none; /* Prevents pull-to-refresh and bounce */
+}
+
 body {
     font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background-color: #fff;
-    margin: 0;
-    padding: 0;
-    height: 100vh;
-    overflow: hidden;
 }
 
 .app-container {
     display: flex;
-    height: 100vh;
-    width: 100vw;
+    height: 100%;
+    width: 100%;
 }
 
 .sidebar {
@@ -151,6 +161,7 @@ body {
     display: flex;
     flex-direction: column;
     background-color: #fff;
+    min-width: 0;
 
     header {
         padding: 15px 25px;
@@ -254,6 +265,7 @@ body {
 
         form {
             display: flex;
+            width: 100%;
             background-color: #fff;
             border: 1px solid #ccc;
             border-radius: 8px;
@@ -269,6 +281,7 @@ body {
                 padding: 8px 12px;
                 font-size: 1em;
                 outline: none;
+                min-width: 0; // Essential for flex shrinking
             }
 
             button {
@@ -279,6 +292,7 @@ body {
                 border-radius: 4px;
                 font-weight: 700;
                 cursor: pointer;
+                flex-shrink: 0; // Don't let the button get squeezed
 
                 &:hover {
                     background-color: #148567;
@@ -297,8 +311,8 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh;
-    width: 100vw;
+    height: 100dvh;
+    width: 100%;
     background-color: #f8f9fa;
 
     .auth-box {
@@ -606,6 +620,10 @@ body {
 }
 
 @media (max-width: 1199px) {
+    html {
+        font-size: 110%;
+    }
+
     .mini-sidebar {
         display: flex;
         flex-direction: column;
@@ -667,6 +685,10 @@ body {
     .chat-container {
         header {
             padding: 15px;
+        }
+
+        footer {
+            padding: 0 10px 10px 10px;
         }
 
         .chat-history {
