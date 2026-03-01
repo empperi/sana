@@ -52,17 +52,12 @@ async fn handle_message(message: async_nats::jetstream::message::Message, state:
 
     let channel_name = match crate::nats_util::decode(encoded_channel_name) {
         Some(name) => name,
+        None if encoded_channel_name == "system.channels" => encoded_channel_name.to_string(),
         None => {
             let _ = message.ack().await;
             return;
         }
     };
-
-    // Don't archive system channel messages 
-    if channel_name == "system.channels" {
-        let _ = message.ack().await;
-        return;
-    }
 
     let payload = String::from_utf8_lossy(&message.payload).to_string();
     let info = match message.info() {
@@ -74,16 +69,53 @@ async fn handle_message(message: async_nats::jetstream::message::Message, state:
     };
     let sequence = info.stream_sequence;
 
-    if let Ok(chat_msg) = serde_json::from_str::<ChatMessage>(&payload) {
-        archive_chat_message(channel_name, sequence, chat_msg, message, state).await;
+    if channel_name == "system.channels" {
+        if let Ok(channel) = serde_json::from_str::<crate::db::channels::Channel>(&payload) {
+            archive_channel(channel, message, state).await;
+        } else {
+            tracing::warn!("Archiver: Failed to parse channel, acking and skipping: {}", payload);
+            let _ = message.ack().await;
+        }
     } else {
-        tracing::warn!("Archiver: Failed to parse message, acking and skipping: {}", payload);
-        let _ = message.ack().await;
+        if let Ok(chat_msg) = serde_json::from_str::<ChatMessage>(&payload) {
+            archive_chat_message(sequence, chat_msg, message, state).await;
+        } else {
+            tracing::warn!("Archiver: Failed to parse message, acking and skipping: {}", payload);
+            let _ = message.ack().await;
+        }
+    }
+}
+
+async fn archive_channel(
+    channel: crate::db::channels::Channel, 
+    message: async_nats::jetstream::message::Message,
+    state: &AppState
+) {
+    let mut tx = match state.db_pool.begin().await {
+        Ok(tx) => tx,
+        Err(e) => {
+            tracing::error!("Archiver: Failed to start transaction for channel: {}", e);
+            return; 
+        }
+    };
+
+    match crate::db::channels::insert_channel(&mut tx, &channel).await {
+        Ok(_) => {
+            if let Err(e) = tx.commit().await {
+                tracing::error!("Archiver: Failed to commit channel transaction: {}", e);
+            } else {
+                let _ = message.ack().await;
+                tracing::debug!("Archiver: Successfully archived channel {}", channel.name);
+            }
+        },
+        Err(e) => {
+            tracing::error!("Archiver: Failed to insert channel into DB: {}", e);
+            let _ = tx.rollback().await;
+        }
     }
 }
 
 async fn archive_chat_message(
-    channel_name: String, 
     sequence: u64, 
     chat_msg: ChatMessage, 
     message: async_nats::jetstream::message::Message,
@@ -97,7 +129,7 @@ async fn archive_chat_message(
         }
     };
 
-    match crate::db::messages::insert_message(&mut tx, &channel_name, sequence, &chat_msg).await {
+    match crate::db::messages::insert_message(&mut tx, sequence, &chat_msg).await {
         Ok(_) => {
             if let Err(e) = tx.commit().await {
                 tracing::error!("Archiver: Failed to commit transaction: {}", e);
@@ -105,7 +137,7 @@ async fn archive_chat_message(
                 if let Err(e) = message.ack().await {
                     tracing::error!("Archiver: Failed to ack message {}: {}", sequence, e);
                 } else {
-                    tracing::debug!("Archiver: Successfully archived message {} on channel {}", sequence, channel_name);
+                    tracing::debug!("Archiver: Successfully archived message {} on channel {}", sequence, chat_msg.channel_id);
                 }
             }
         },

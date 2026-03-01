@@ -25,10 +25,10 @@ pub async fn ws_handler(
     let user = users::get_user_by_id(&mut tx, user_id).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::UNAUTHORIZED)?;
 
-    Ok(ws.on_upgrade(move |socket| handle_socket(socket, state, user.user_id.to_string(), user.username)))
+    Ok(ws.on_upgrade(move |socket| handle_socket(socket, state, user.id, user.username)))
 }
 
-async fn handle_socket(socket: WebSocket, state: AppState, user_id: String, username: String) {
+async fn handle_socket(socket: WebSocket, state: AppState, user_id: Uuid, username: String) {
     let (mut sender, mut receiver) = socket.split();
     let (tx_internal, mut rx_internal) = tokio::sync::mpsc::channel::<String>(100);
 
@@ -47,7 +47,7 @@ async fn handle_socket(socket: WebSocket, state: AppState, user_id: String, user
             match msg {
                 Message::Text(text) => {
                     let command = stomp::parse(&text);
-                    let actions = ws_logic::decide(command, &user_id, &username);
+                    let actions = ws_logic::decide(command, user_id, &username);
 
                     for action in actions {
                         match action {
@@ -61,8 +61,8 @@ async fn handle_socket(socket: WebSocket, state: AppState, user_id: String, user
                                     tracing::debug!("Already subscribed to channel: {}", channel_name);
                                 }
                             }
-                            WsAction::PublishToNats(subject, body, message_id) => {
-                                 ws_logic::process_and_publish_message(subject, body, message_id, &username, &state).await;
+                            WsAction::PublishToNats(subject, body, message_id, channel_name) => {
+                                 ws_logic::process_and_publish_message(subject, body, message_id, user_id, &username, &channel_name, &state).await;
                             }
                             WsAction::SendReceipt(receipt_id) => {
                                 let response = format!("RECEIPT\nreceipt-id:{}\n\n\0", receipt_id);

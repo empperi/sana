@@ -1,5 +1,7 @@
 use frontend::logic::*;
-use frontend::types::ChatMessage;
+use frontend::types::{ChatMessage, Channel};
+use uuid::Uuid;
+use chrono::Utc;
 
 #[test]
 fn test_initial_state() {
@@ -12,9 +14,11 @@ fn test_initial_state() {
 fn test_handle_message_current_channel() {
     let mut state = ChatState::new();
     let msg = ChatMessage {
-        id: "1".to_string(),
+        id: Uuid::new_v4(),
+        channel_id: Uuid::new_v4(),
+        user_id: Uuid::new_v4(),
         user: "Alice".to_string(),
-        timestamp: 100,
+        timestamp: Utc::now(),
         message: "hi".to_string(),
         pending: false,
         seq: None,
@@ -31,9 +35,11 @@ fn test_handle_message_other_channel() {
     let mut state = ChatState::new();
     state.channels.push("other".to_string());
     let msg = ChatMessage {
-        id: "1".to_string(),
+        id: Uuid::new_v4(),
+        channel_id: Uuid::new_v4(),
+        user_id: Uuid::new_v4(),
         user: "Alice".to_string(),
-        timestamp: 100,
+        timestamp: Utc::now(),
         message: "hi".to_string(),
         pending: false,
         seq: None,
@@ -55,17 +61,27 @@ fn test_switch_channel_clears_unread() {
 #[test]
 fn test_handle_system_message_adds_channel() {
     let mut state = ChatState::new();
-    state.handle_system_message("new-room".to_string());
+    let channel = Channel {
+        id: Uuid::new_v4(),
+        name: "new-room".to_string(),
+        is_private: false,
+        created_at: Utc::now(),
+    };
+    let payload = serde_json::to_string(&channel).unwrap();
+    state.handle_system_message(payload);
     assert!(state.channels.contains(&"new-room".to_string()));
 }
 
 #[test]
 fn test_pending_message_replacement_different_user_id() {
     let mut state = ChatState::new();
+    let msg_id = Uuid::new_v4();
     let pending = ChatMessage {
-        id: "1".to_string(),
+        id: msg_id,
+        channel_id: Uuid::new_v4(),
+        user_id: Uuid::new_v4(),
         user: "User9999".to_string(),
-        timestamp: 100,
+        timestamp: Utc::now(),
         message: "hi".to_string(),
         pending: true,
         seq: None,
@@ -74,9 +90,11 @@ fn test_pending_message_replacement_different_user_id() {
     
     // On reconnect, we might get a different user_id
     let confirmed = ChatMessage {
-        id: "1".to_string(),
+        id: msg_id,
+        channel_id: Uuid::new_v4(),
+        user_id: Uuid::new_v4(),
         user: "User1111".to_string(),
-        timestamp: 105,
+        timestamp: Utc::now(),
         message: "hi".to_string(),
         pending: false,
         seq: None,

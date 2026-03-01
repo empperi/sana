@@ -36,7 +36,7 @@ impl StompClient for WebSocketService {
 
 type MsgCallback = Callback<(String, ChatMessage)>;
 type SysMsgCallback = Callback<(String, String)>;
-type ConnectedCallback = Callback<String>;
+type ConnectedCallback = Callback<(String, Uuid)>;
 type StatusCallback = Callback<ConnectionStatus>;
 
 impl WebSocketService {
@@ -107,9 +107,9 @@ impl WebSocketService {
         let mut read = read.fuse();
         if write.send(Message::Text(stomp::create_connect_frame())).await.is_err() { return; }
 
-        if let Some(username) = Self::wait_for_stomp_connected(&mut read, on_message, on_system_message, on_connected, on_status_change).await {
+        if let Some((username, user_id)) = Self::wait_for_stomp_connected(&mut read, on_message, on_system_message, on_connected, on_status_change).await {
             on_status_change.emit(ConnectionStatus::Connected);
-            on_connected.emit(username);
+            on_connected.emit((username, user_id));
         } else {
             return;
         }
@@ -128,13 +128,13 @@ impl WebSocketService {
         on_system_message: &SysMsgCallback,
         on_connected: &ConnectedCallback,
         on_status_change: &StatusCallback,
-    ) -> Option<String> 
+    ) -> Option<(String, Uuid)> 
     where R: Stream<Item = Result<Message, WebSocketError>> + Unpin 
     {
         while let Some(Ok(Message::Text(text))) = read.next().await {
             if let Some(frame) = stomp::parse_frame(&text) {
-                if let StompFrame::Connected { username } = frame {
-                    return Some(username);
+                if let StompFrame::Connected { username, user_id } = frame {
+                    return Some((username, user_id));
                 }
                 handle_incoming_frame(frame, on_message, on_system_message, on_connected, on_status_change);
             }
@@ -270,9 +270,9 @@ fn handle_incoming_frame(
     on_status_change: &StatusCallback,
 ) {
     match frame {
-        StompFrame::Connected { username } => {
+        StompFrame::Connected { username, user_id } => {
             on_status_change.emit(ConnectionStatus::Connected);
-            on_connected.emit(username);
+            on_connected.emit((username, user_id));
         }
         StompFrame::Message { destination, body, seq } => {
             if let Some(channel_name) = destination.strip_prefix("/topic/") {

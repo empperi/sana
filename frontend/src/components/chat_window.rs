@@ -1,6 +1,6 @@
 use yew::prelude::*;
 use crate::types::ChatMessage;
-use chrono::{DateTime, Local, TimeZone, Utc};
+use chrono::{DateTime, Local};
 use web_sys::{HtmlElement, HtmlInputElement};
 use gloo_events::EventListener;
 use wasm_bindgen::JsCast;
@@ -152,8 +152,7 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
             </header>
             <div class="chat-history" ref={chat_container_ref} onscroll={on_scroll}>
                 { for props.messages.iter().map(|msg| {
-                    let time = Utc.timestamp_millis_opt(msg.timestamp).unwrap();
-                    let local_time: DateTime<Local> = DateTime::from(time);
+                    let local_time: DateTime<Local> = DateTime::from(msg.timestamp);
                     let time_str = local_time.format("%H:%M:%S").to_string();
 
                     let is_me = msg.user == props.current_username;

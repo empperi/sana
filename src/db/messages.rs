@@ -3,19 +3,18 @@ use crate::messages::ChatMessage;
 
 pub async fn insert_message(
     tx: &mut Transaction<'_, Postgres>,
-    channel: &str,
     seq: u64,
     msg: &ChatMessage,
 ) -> Result<(), sqlx::Error> {
     sqlx::query(
-        "INSERT INTO messages (id, channel, seq, username, content, created_at_ms) 
+        "INSERT INTO messages (id, channel_id, user_id, seq, content, created_at) 
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (id) DO NOTHING"
     )
-    .bind(&msg.id)
-    .bind(channel)
+    .bind(msg.id)
+    .bind(msg.channel_id)
+    .bind(msg.user_id)
     .bind(seq as i64)
-    .bind(&msg.user)
     .bind(&msg.message)
     .bind(msg.timestamp)
     .execute(&mut **tx)

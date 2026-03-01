@@ -156,10 +156,10 @@ fn create_on_system_message_callback(
     })
 }
 
-fn create_on_connected_callback(chat_state: UseStateHandle<ChatState>, state_ref: Rc<RefCell<ChatState>>) -> Callback<String> {
-    Callback::from(move |username| {
+fn create_on_connected_callback(chat_state: UseStateHandle<ChatState>, state_ref: Rc<RefCell<ChatState>>) -> Callback<(String, Uuid)> {
+    Callback::from(move |(username, user_id)| {
         let mut state = (*state_ref.borrow()).clone();
-        state.set_username(username);
+        state.set_user_info(username, user_id);
         *state_ref.borrow_mut() = state.clone();
         chat_state.set(state);
     })
@@ -203,13 +203,17 @@ fn handle_send_message(
     ws_service: &Rc<RefCell<Option<Rc<WebSocketService>>>>
 ) {
     let mut state = (*state_ref.borrow()).clone();
-    let message_id = Uuid::new_v4().to_string();
+    let message_id = Uuid::new_v4();
     let channel_name = state.current_channel.clone();
+    
+    let channel_id = state.channel_id_map.get(&channel_name).cloned().unwrap_or_else(Uuid::nil);
 
     let pending_msg = ChatMessage {
-        id: message_id.clone(),
+        id: message_id,
+        channel_id,
+        user_id: state.user_id,
         user: state.username.clone(),
-        timestamp: Utc::now().timestamp_millis(),
+        timestamp: Utc::now(),
         message: text.clone(),
         pending: true,
         seq: None,
@@ -218,7 +222,7 @@ fn handle_send_message(
     state.add_pending_message(channel_name.clone(), pending_msg);
     if let Some(service) = &*ws_service.borrow() {
         let service: &Rc<WebSocketService> = service;
-        service.send(stomp::create_send_frame(&channel_name, &message_id, &text));
+        service.send(stomp::create_send_frame(&channel_name, &message_id.to_string(), &text));
     }
     *state_ref.borrow_mut() = state.clone();
     chat_state.set(state);

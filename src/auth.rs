@@ -77,14 +77,14 @@ async fn register(
     let user = users::create_user(&mut tx, &payload.username, &hashed_password).await.map_err(internal_error)?;
     tx.commit().await.map_err(internal_error)?;
 
-    let mut cookie = Cookie::new("session_id", user.user_id.to_string());
+    let mut cookie = Cookie::new("session_id", user.id.to_string());
     cookie.set_path("/");
     let updated_jar = jar.add(cookie);
 
     Ok((
         updated_jar,
         Json(AuthResponse {
-            user_id: user.user_id,
+            user_id: user.id,
             username: user.username,
         }),
     ))
@@ -115,17 +115,17 @@ async fn login(
         ));
     }
 
-    users::update_last_login(&mut tx, user.user_id).await.map_err(internal_error)?;
+    users::update_last_login(&mut tx, user.id).await.map_err(internal_error)?;
     tx.commit().await.map_err(internal_error)?;
 
-    let mut cookie = Cookie::new("session_id", user.user_id.to_string());
+    let mut cookie = Cookie::new("session_id", user.id.to_string());
     cookie.set_path("/");
     let updated_jar = jar.add(cookie);
 
     Ok((
         updated_jar,
         Json(AuthResponse {
-            user_id: user.user_id,
+            user_id: user.id,
             username: user.username,
         }),
     ))
@@ -140,7 +140,7 @@ async fn me(
             let mut tx = state.db_pool.begin().await.map_err(internal_error)?;
             if let Ok(Some(user)) = users::get_user_by_id(&mut tx, user_id).await {
                 return Ok(Json(AuthResponse {
-                    user_id: user.user_id,
+                    user_id: user.id,
                     username: user.username,
                 }));
             }

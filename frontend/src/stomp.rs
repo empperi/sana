@@ -1,6 +1,8 @@
+use uuid::Uuid;
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum StompFrame {
-    Connected { username: String },
+    Connected { username: String, user_id: Uuid },
     Message { destination: String, body: String, seq: Option<u64> },
     Receipt { receipt_id: String },
     Error(String),
@@ -9,13 +11,18 @@ pub enum StompFrame {
 pub fn parse_frame(text: &str) -> Option<StompFrame> {
     if text.starts_with("CONNECTED") {
         let mut username = String::new();
+        let mut user_id = Uuid::nil();
         for line in text.lines() {
             if line.starts_with("username:") {
                 username = line.strip_prefix("username:").unwrap().trim().to_string();
+            } else if line.starts_with("user_id:") {
+                if let Ok(id) = Uuid::parse_str(line.strip_prefix("user_id:").unwrap().trim()) {
+                    user_id = id;
+                }
             }
         }
         if !username.is_empty() {
-            return Some(StompFrame::Connected { username });
+            return Some(StompFrame::Connected { username, user_id });
         }
     } else if text.starts_with("RECEIPT") {
         let mut receipt_id = String::new();

@@ -11,6 +11,7 @@ use sana::auth;
 use sana::config::Config;
 use sana::db;
 use sana::logic::{nats, archiver};
+use uuid::Uuid;
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::cors::{CorsLayer};
 use axum::http::{HeaderValue, Method};
@@ -63,6 +64,18 @@ async fn main() {
     
     if db::check_connection(&db_pool).await.unwrap_or(false) {
         tracing::info!("Successfully connected to database and ran migrations");
+        
+        // Ensure General channel exists
+        let mut tx = db_pool.begin().await.unwrap();
+        let general_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+        let general_channel = sana::db::channels::Channel {
+            id: general_id,
+            name: "General".to_string(),
+            is_private: false,
+            created_at: chrono::Utc::now(),
+        };
+        sana::db::channels::insert_channel(&mut tx, &general_channel).await.unwrap();
+        tx.commit().await.unwrap();
     }
 
     let cookie_key = match env::var("COOKIE_KEY") {

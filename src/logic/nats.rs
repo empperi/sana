@@ -50,12 +50,20 @@ async fn handle_nats_message(message: async_nats::jetstream::message::Message, s
 }
 
 async fn handle_system_channels_message(payload: String, state: &AppState) {
-    let channel_name = crate::nats_util::decode(&payload).unwrap_or(payload);
-    tracing::info!("NATS: Received new channel notification: {}", channel_name);
+    if let Ok(channel) = serde_json::from_str::<crate::db::channels::Channel>(&payload) {
+        tracing::info!("NATS: Received new channel notification: {}", channel.name);
 
-    let channels = state.channels.lock().unwrap();
-    if let Some(tx) = channels.get("system.channels") {
-        let _ = tx.send(channel_name);
+        {
+            let mut channel_ids = state.channel_ids.lock().unwrap();
+            channel_ids.insert(channel.name.clone(), channel.id);
+        }
+
+        let channels = state.channels.lock().unwrap();
+        if let Some(tx) = channels.get("system.channels") {
+            let _ = tx.send(channel.name);
+        }
+    } else {
+        tracing::warn!("NATS: Failed to parse channel from system.channels: {}", payload);
     }
 }
 

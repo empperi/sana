@@ -1,9 +1,11 @@
 use frontend::stomp::*;
+use uuid::Uuid;
 
 #[test]
 fn test_parse_connected() {
-    let frame = "CONNECTED\nversion:1.2\nusername:alice\n\n\0";
-    assert_eq!(parse_frame(frame), Some(StompFrame::Connected { username: "alice".to_string() }));
+    let user_id = Uuid::new_v4();
+    let frame = format!("CONNECTED\nversion:1.2\nuser_id:{}\nusername:alice\n\n\0", user_id);
+    assert_eq!(parse_frame(&frame), Some(StompFrame::Connected { username: "alice".to_string(), user_id }));
 }
 
 #[test]

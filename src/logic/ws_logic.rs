@@ -8,12 +8,12 @@ use crate::messages::ChatMessage;
 pub enum WsAction {
     SendToClient(String),
     Subscribe(String, Option<u64>), // channel, last_seen_seq
-    PublishToNats(String, String, Option<String>), // subject, body, message_id
+    PublishToNats(String, String, Option<String>, String), // subject, body, message_id, channel_name
     SendReceipt(String), // receipt-id
     None,
 }
 
-pub fn decide(command: StompCommand, user_id: &str, username: &str) -> Vec<WsAction> {
+pub fn decide(command: StompCommand, user_id: Uuid, username: &str) -> Vec<WsAction> {
     let mut actions = Vec::new();
     match command {
         StompCommand::Connect => {
@@ -34,7 +34,12 @@ pub fn decide(command: StompCommand, user_id: &str, username: &str) -> Vec<WsAct
                     .find(|(k, _)| k == "message_id")
                     .map(|(_, v)| v.clone());
 
-                actions.push(WsAction::PublishToNats(format!("topic.{}", crate::nats_util::encode(channel_name)), body, message_id));
+                actions.push(WsAction::PublishToNats(
+                    format!("topic.{}", crate::nats_util::encode(channel_name)), 
+                    body, 
+                    message_id,
+                    channel_name.to_string()
+                ));
                 
                 if let Some((_, receipt_id)) = headers.iter().find(|(k, _)| k == "receipt") {
                     actions.push(WsAction::SendReceipt(receipt_id.clone()));
@@ -94,6 +99,8 @@ async fn send_initial_channels(state: &AppState, tx_internal: &tokio::sync::mpsc
 
 fn get_or_create_broadcast_channel(channel_name: &str, state: &AppState) -> tokio::sync::broadcast::Sender<String> {
     let mut channels = state.channels.lock().unwrap();
+    let mut channel_ids = state.channel_ids.lock().unwrap();
+    
     let is_new = !channels.contains_key(channel_name);
     
     let tx = channels.entry(channel_name.to_string())
@@ -104,16 +111,27 @@ fn get_or_create_broadcast_channel(channel_name: &str, state: &AppState) -> toki
         .clone();
 
     if is_new && channel_name != "system.channels" {
-        publish_new_channel(channel_name, &state.nats_client);
+        let channel_id = *channel_ids.entry(channel_name.to_string())
+            .or_insert_with(Uuid::new_v4);
+            
+        publish_new_channel(channel_name, channel_id, &state.nats_client);
     }
     tx
 }
 
-fn publish_new_channel(channel_name: &str, nats_client: &async_nats::Client) {
+fn publish_new_channel(channel_name: &str, channel_id: Uuid, nats_client: &async_nats::Client) {
     let nats_client = nats_client.clone();
-    let name = crate::nats_util::encode(channel_name);
+    let channel = crate::db::channels::Channel {
+        id: channel_id,
+        name: channel_name.to_string(),
+        is_private: false,
+        created_at: chrono::Utc::now(),
+    };
+
     tokio::spawn(async move {
-        let _ = nats_client.publish("topic.system.channels", Bytes::from(name)).await;
+        if let Ok(payload) = serde_json::to_string(&channel) {
+            let _ = nats_client.publish("topic.system.channels", Bytes::from(payload)).await;
+        }
     });
 }
 
@@ -138,12 +156,28 @@ async fn subscribe_to_broadcast(channel_name: String, tx: tokio::sync::broadcast
     });
 }
 
-pub async fn process_and_publish_message(subject: String, body: String, message_id: Option<String>, username: &str, state: &AppState) {
-    let id = message_id.unwrap_or_else(|| Uuid::new_v4().to_string());
+pub async fn process_and_publish_message(
+    subject: String, 
+    body: String, 
+    message_id: Option<String>, 
+    user_id: Uuid,
+    username: &str, 
+    channel_name: &str,
+    state: &AppState
+) {
+    let id = message_id.and_then(|sid| Uuid::parse_str(&sid).ok()).unwrap_or_else(Uuid::new_v4);
+    
+    let channel_id = {
+        let mut ids = state.channel_ids.lock().unwrap();
+        *ids.entry(channel_name.to_string()).or_insert_with(Uuid::new_v4)
+    };
+
     let chat_msg = ChatMessage {
         id,
+        channel_id,
+        user_id,
         user: username.to_string(),
-        timestamp: chrono::Utc::now().timestamp_millis(),
+        timestamp: chrono::Utc::now(),
         message: body,
         seq: None,
     };

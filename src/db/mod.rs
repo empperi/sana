@@ -3,6 +3,7 @@ use crate::config::Config;
 
 pub mod users;
 pub mod messages;
+pub mod channels;
 
 pub async fn connect(config: &Config) -> Result<PgPool, sqlx::Error> {
     PgPoolOptions::new()

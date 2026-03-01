@@ -1,12 +1,16 @@
 use std::collections::HashMap;
 use std::sync::{Mutex};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+use chrono::{DateTime, Utc};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ChatMessage {
-    pub id: String,
+    pub id: Uuid,
+    pub channel_id: Uuid,
+    pub user_id: Uuid,
     pub user: String,
-    pub timestamp: i64,
+    pub timestamp: DateTime<Utc>,
     pub message: String,
     pub seq: Option<u64>,
 }
@@ -38,7 +42,7 @@ impl MessageStore {
         store.get(channel).cloned().unwrap_or_default()
     }
 
-    pub fn get_messages_after(&self, channel: &str, last_id: &str) -> Vec<ChatMessage> {
+    pub fn get_messages_after(&self, channel: &str, last_id: Uuid) -> Vec<ChatMessage> {
         let store = self.messages.lock().unwrap();
         if let Some(msgs) = store.get(channel) {
             if let Some(pos) = msgs.iter().position(|m| m.id == last_id) {
