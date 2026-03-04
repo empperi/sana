@@ -19,13 +19,19 @@ pub fn parse(text: &str) -> StompCommand {
     };
 
     match command_line {
-        "CONNECT" | "STOMP" => StompCommand::Connect,
+        "CONNECT" | "STOMP" => {
+            while let Some(line) = lines.next() {
+                if line.is_empty() { break; }
+            }
+            StompCommand::Connect
+        }
         "SUBSCRIBE" => {
             let mut destination = String::new();
             let mut last_seen_id = None;
             let mut last_seen_seq = None;
             let mut headers = Vec::new();
-            for line in lines {
+            let lines_iter = lines.by_ref();
+            while let Some(line) = lines_iter.next() {
                 if line.is_empty() { break; }
                 if let Some((key, value)) = line.split_once(':') {
                     let k = key.trim();
@@ -52,16 +58,11 @@ pub fn parse(text: &str) -> StompCommand {
         }
         "SEND" => {
             let mut destination = String::new();
-            let mut body = String::new();
             let mut headers = Vec::new();
-            let mut lines_iter = lines.peekable();
+            let lines_iter = lines.by_ref();
 
             while let Some(line) = lines_iter.next() {
                 if line.is_empty() {
-                    // Body starts after the first empty line
-                    if let Some(next_line) = lines_iter.next() {
-                        body = next_line.trim_end_matches('\0').to_string();
-                    }
                     break;
                 }
                 if let Some((key, value)) = line.split_once(':') {
@@ -73,6 +74,8 @@ pub fn parse(text: &str) -> StompCommand {
                     headers.push((k.to_string(), v.to_string()));
                 }
             }
+
+            let body = lines_iter.collect::<Vec<_>>().join("\n").trim_end_matches('\0').to_string();
 
             if !destination.is_empty() {
                 StompCommand::Send { destination, body, headers }

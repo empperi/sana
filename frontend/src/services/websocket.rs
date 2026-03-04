@@ -61,7 +61,7 @@ impl WebSocketService {
             
             loop {
                 // Check if we should stop before trying to connect
-                if stop_rx.try_recv().is_ok() { break; }
+                if stop_rx.try_next().is_ok() { break; }
 
                 on_status_change.emit(ConnectionStatus::Reconnecting);
                 if let Ok(ws) = WebSocket::open(&ws_url) {
@@ -136,7 +136,7 @@ impl WebSocketService {
             return;
         }
 
-        if Self::sync_subscriptions(&mut write, &mut read, rx, on_message, on_system_message, on_connected, on_status_change).await.is_err() { return; }
+        if Self::sync_subscriptions(&mut write, &mut read, rx, outgoing_buffer.clone(), on_message, on_system_message, on_connected, on_status_change).await.is_err() { return; }
         
         TimeoutFuture::new(500).await;
         if Self::flush_outgoing_buffer(&mut write, outgoing_buffer.clone()).await.is_err() { return; }
@@ -168,6 +168,7 @@ impl WebSocketService {
         write: &mut W,
         read: &mut futures::stream::Fuse<R>,
         rx: &mut futures::channel::mpsc::Receiver<String>,
+        outgoing_buffer: Rc<RefCell<Vec<String>>>,
         on_message: &MsgCallback,
         on_system_message: &SysMsgCallback,
         on_connected: &ConnectedCallback,
@@ -178,10 +179,14 @@ impl WebSocketService {
         R: Stream<Item = Result<Message, WebSocketError>> + Unpin,
     {
         let mut pending = HashSet::new();
-        while let Ok(msg) = rx.try_recv() {
-            let (final_msg, receipt_id) = prepare_subscription_frame(msg);
-            if let Some(rid) = receipt_id { pending.insert(rid); }
-            if write.send(Message::Text(final_msg)).await.is_err() { return Err(()); }
+        while let Ok(Some(msg)) = rx.try_next() {
+            if msg.starts_with("SUBSCRIBE") {
+                let (final_msg, receipt_id) = prepare_subscription_frame(msg);
+                if let Some(rid) = receipt_id { pending.insert(rid); }
+                if write.send(Message::Text(final_msg)).await.is_err() { return Err(()); }
+            } else {
+                outgoing_buffer.borrow_mut().push(msg);
+            }
         }
 
         while !pending.is_empty() {

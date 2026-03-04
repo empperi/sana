@@ -198,3 +198,43 @@ fn test_pending_message_replacement_different_user_id() {
         panic!("Expected Message variant");
     }
 }
+
+#[test]
+fn test_message_update_with_seq() {
+    let mut state = ChatState::new();
+    let msg_id = Uuid::new_v4();
+    let initial_msg = ChatMessage {
+        id: msg_id,
+        channel_id: Uuid::new_v4(),
+        user_id: Uuid::new_v4(),
+        user: "Alice".to_string(),
+        timestamp: Utc::now(),
+        message: "hello".to_string(),
+        pending: false,
+        seq: None,
+    };
+    state.handle_message("General".to_string(), ChannelEntry::Message(initial_msg));
+    
+    let updated_msg = ChatMessage {
+        id: msg_id,
+        channel_id: Uuid::new_v4(),
+        user_id: Uuid::new_v4(),
+        user: "Alice".to_string(),
+        timestamp: Utc::now(),
+        message: "hello".to_string(),
+        pending: false,
+        seq: Some(123),
+    };
+    let updated_entry = ChannelEntry::Message(updated_msg);
+    state.handle_message("General".to_string(), updated_entry.clone());
+    
+    let entries = state.messages.get("General").unwrap();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0], updated_entry);
+    
+    if let ChannelEntry::Message(ref m) = entries[0] {
+        assert_eq!(m.seq, Some(123));
+    } else {
+        panic!("Expected Message variant");
+    }
+}

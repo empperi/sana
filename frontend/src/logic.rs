@@ -43,33 +43,33 @@ impl ChatState {
             ChannelEntry::UserJoined { id, .. } => *id,
         };
 
-        // Update pending message or add new one.
-        if let ChannelEntry::Message(ref msg) = entry {
-            if let Some(pos) = messages.iter().position(|e| {
-                if let ChannelEntry::Message(m) = e {
-                    m.id == msg.id && m.pending
-                } else {
-                    false
-                }
-            }) {
-                messages[pos] = entry;
-                return;
-            }
-        }
-
-        // Idempotency: only add if we don't have this entry ID yet
-        if !messages.iter().any(|e| {
+        // Find existing message by ID
+        if let Some(pos) = messages.iter().position(|e| {
             let id = match e {
                 ChannelEntry::Message(m) => m.id,
                 ChannelEntry::UserJoined { id, .. } => *id,
             };
             id == entry_id
         }) {
-            messages.push(entry);
-            
-            if channel != self.current_channel {
-                self.unread_channels.insert(channel);
+            // Update if the existing message is pending or if the new one has a sequence number
+            let should_update = match (&messages[pos], &entry) {
+                (ChannelEntry::Message(old), ChannelEntry::Message(new)) => {
+                    old.pending || (old.seq.is_none() && new.seq.is_some())
+                },
+                _ => false, // Non-message entries are idempotent based on ID
+            };
+
+            if should_update {
+                messages[pos] = entry;
             }
+            return;
+        }
+
+        // New message, add it
+        messages.push(entry);
+        
+        if channel != self.current_channel {
+            self.unread_channels.insert(channel);
         }
     }
 
