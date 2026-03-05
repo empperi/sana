@@ -1,5 +1,6 @@
 use yew::prelude::*;
 use crate::types::ChannelEntry;
+use crate::components::profile_menu::ProfileMenu;
 use chrono::{DateTime, Local};
 use web_sys::{HtmlElement, HtmlInputElement};
 use gloo_events::EventListener;
@@ -149,6 +150,7 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
         <div class="chat-container">
             <header>
                 <h1>{ format!("# {}", props.current_channel) }</h1>
+                <ProfileMenu username={props.current_username.clone()} />
             </header>
             <div class="chat-history" ref={history_ref} onscroll={on_scroll}>
                 { for props.messages.iter().map(|entry| {

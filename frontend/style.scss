@@ -164,14 +164,142 @@ body {
     min-width: 0;
 
     header {
-        padding: 15px 25px;
+        padding: 10px 20px;
         border-bottom: 1px solid #eee;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-shrink: 0;
         
         h1 {
             margin: 0;
-            font-size: 1.2em;
+            font-size: 1.1em;
             font-weight: 800;
             color: #1d1c1d;
+        }
+    }
+
+    .profile-menu-container {
+        position: relative;
+
+        .profile-button {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: none;
+            border: 1px solid transparent;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.1s;
+
+            &:hover {
+                background-color: #f8f8f8;
+                border-color: #ddd;
+            }
+
+            .avatar {
+                width: 28px;
+                height: 28px;
+                background-color: #0284c7;
+                color: white;
+                border-radius: 4px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: 700;
+                font-size: 0.85em;
+            }
+
+            .username {
+                font-weight: 700;
+                color: #1d1c1d;
+                font-size: 0.9em;
+            }
+
+            .chevron {
+                width: 16px;
+                height: 16px;
+                color: #616061;
+            }
+        }
+
+        .profile-dropdown {
+            position: absolute;
+            top: calc(100% + 5px);
+            right: 0;
+            width: 300px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 0 0 1px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.12);
+            z-index: 1000;
+            padding: 12px 0;
+
+            .dropdown-header {
+                padding: 8px 20px 16px 20px;
+                display: flex;
+                gap: 12px;
+                align-items: center;
+
+                .avatar-large {
+                    width: 48px;
+                    height: 48px;
+                    background-color: #0284c7;
+                    color: white;
+                    border-radius: 8px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-weight: 700;
+                    font-size: 1.4em;
+                }
+
+                .user-info {
+                    .full-name {
+                        font-weight: 900;
+                        color: #1d1c1d;
+                        font-size: 1.1em;
+                    }
+
+                    .status-indicator {
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        font-size: 0.85em;
+                        color: #616061;
+                        margin-top: 2px;
+
+                        .status-dot {
+                            width: 8px;
+                            height: 8px;
+                            background-color: #22c55e;
+                            border-radius: 50%;
+                        }
+                    }
+                }
+            }
+
+            .dropdown-divider {
+                height: 1px;
+                background-color: #eee;
+                margin: 8px 0;
+            }
+
+            .dropdown-item {
+                width: 100%;
+                text-align: left;
+                background: none;
+                border: none;
+                padding: 8px 24px;
+                font-size: 0.95em;
+                color: #1d1c1d;
+                cursor: pointer;
+
+                &:hover {
+                    background-color: #1264a3;
+                    color: white;
+                }
+            }
         }
     }
 

@@ -194,5 +194,7 @@ async fn me(
 }
 
 async fn logout(jar: SignedCookieJar) -> impl IntoResponse {
-    jar.remove(Cookie::from("session_id"))
+    let mut cookie = Cookie::from("session_id");
+    cookie.set_path("/");
+    jar.remove(cookie)
 }
