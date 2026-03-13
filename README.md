@@ -86,6 +86,18 @@ This project is optimized for agentic development. Please refer to the following
 - **[GEMINI.md](GEMINI.md)**: Contains foundational mandates and workspace-specific instructions for AI agents.
 - **[AGENTS.md](AGENTS.md)**: Defines the core operating principles and coding style instructions that must be followed.
 
+### Supercharged AI Search (MCP)
+
+This project includes a dedicated **Code Indexer** MCP (Model Context Protocol) server. When running, it allows AI agents (like Gemini CLI) to perform high-speed symbol lookups, deep code searching, and architectural analysis without reading every file.
+
+To enable the indexer during development:
+
+```bash
+docker-compose --profile dev up -d code-indexer
+```
+
+Once started, the agent will automatically detect the indexer and use it for all codebase navigation tasks.
+
 ## Testing
 
 Follow the TDD approach as specified in `AGENTS.md`.
