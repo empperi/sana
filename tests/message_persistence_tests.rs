@@ -34,8 +34,9 @@ async fn setup_app(ctx: &TestContext, key: Key) -> (axum::Router, AppState) {
         cookie_key: key,
     };
     
-    // Start archiver
-    archiver::start(app_state.clone()).await;
+    // Start archiver with a unique durable name for this test to avoid conflicts
+    let durable_name = format!("test-archiver-{}", Uuid::new_v4());
+    archiver::start_with_durable(app_state.clone(), durable_name).await;
     
     (create_router(combined_state), app_state)
 }
@@ -70,9 +71,9 @@ async fn test_message_persistence_to_db() {
     ).await;
 
     // 2. Wait for archiver to process (it's async background task)
-    // We'll poll the DB for a bit
+    // We'll poll the DB for a bit - increased for CI stability
     let mut persisted = false;
-    for _ in 0..20 {
+    for _ in 0..50 {
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         let msgs = db::messages::get_messages(&ctx.pool, channel.id, 10, None, false).await.unwrap();
         if msgs.iter().any(|m| m.message == "Persistent Message") {

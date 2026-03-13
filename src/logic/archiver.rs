@@ -6,6 +6,10 @@ use crate::messages::ChatMessage;
 /// This task subscribes to the NATS JetStream "SANA" stream using a durable consumer
 /// and saves every incoming chat message to the database.
 pub async fn start(state: AppState) {
+    start_with_durable(state, "postgres-archiver".to_string()).await;
+}
+
+pub async fn start_with_durable(state: AppState, durable_name: String) {
     let jetstream = state.jetstream.clone();
     
     let deliver_policy = match jetstream.get_stream("SANA").await {
@@ -27,14 +31,14 @@ pub async fn start(state: AppState) {
         }
     };
 
-    tracing::info!("Archiver: Starting with deliver policy: {:?}", deliver_policy);
+    tracing::info!("Archiver: Starting with durable '{}' and deliver policy: {:?}", durable_name, deliver_policy);
 
     // Create a pull consumer with a durable_name to ensure we don't miss messages
     let consumer = match jetstream.get_stream("SANA").await.unwrap()
         .get_or_create_consumer(
-            "postgres-archiver",
+            &durable_name,
             async_nats::jetstream::consumer::pull::Config {
-                durable_name: Some("postgres-archiver".to_string()),
+                durable_name: Some(durable_name.clone()),
                 deliver_policy,
                 ..Default::default()
             }
