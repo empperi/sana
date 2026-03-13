@@ -44,3 +44,16 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  # Code Indexer (Low overhead, High value)
+  code-indexer:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp-index
+    profiles:
+      - dev
+    volumes:
+      - .:/project:ro
+    stdin_open: true
+    # Use tail to keep container alive without TTY which breaks JSON-RPC
+    command: tail -f /dev/null

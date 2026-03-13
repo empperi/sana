@@ -1,0 +1,12 @@
+FROM python:3.11-slim-bookworm
+
+# Install system dependencies (ctags is required for indexing)
+RUN apt-get update && apt-get install -y \
+    universal-ctags \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install the MCP server
+RUN pip install code-index-mcp
+
+WORKDIR /project
