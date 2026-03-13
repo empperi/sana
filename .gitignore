@@ -23,7 +23,10 @@ Thumbs.db
 # Docker
 .docker/
 
-.gemini/
+# Agentic Development
+.gemini/tmp/
+.gemini/skills/dist/*.skill
+
 gha-creds-*.json
 .playwright-mcp/
 
