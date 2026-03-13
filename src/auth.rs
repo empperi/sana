@@ -33,7 +33,6 @@ where
 
         if let Some(cookie) = jar.get("session_id") {
             if let Ok(user_id) = Uuid::parse_str(cookie.value()) {
-                // Verify user exists in DB
                 let app_state = AppState::from_ref(state);
                 let mut tx = app_state.db_pool.begin().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
                 let user_exists = users::get_user_by_id(&mut tx, user_id).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.is_some();
@@ -85,6 +84,12 @@ where
     )
 }
 
+fn set_session_cookie(jar: SignedCookieJar, user_id: Uuid) -> SignedCookieJar {
+    let mut cookie = Cookie::new("session_id", user_id.to_string());
+    cookie.set_path("/");
+    jar.add(cookie)
+}
+
 async fn register(
     State(state): State<AppState>,
     jar: SignedCookieJar,
@@ -101,7 +106,6 @@ async fn register(
 
     let mut tx = state.db_pool.begin().await.map_err(internal_error)?;
 
-    // Check if user exists
     if let Ok(Some(_)) = users::get_user_by_username(&mut tx, &payload.username).await {
         return Err((
             StatusCode::CONFLICT,
@@ -111,15 +115,12 @@ async fn register(
 
     let user = users::create_user(&mut tx, &payload.username, &hashed_password).await.map_err(internal_error)?;
     
-    // Join to #General
     let general_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
     crate::db::channels::join_channel(&mut tx, user.id, general_id).await.map_err(internal_error)?;
 
     tx.commit().await.map_err(internal_error)?;
 
-    let mut cookie = Cookie::new("session_id", user.id.to_string());
-    cookie.set_path("/");
-    let updated_jar = jar.add(cookie);
+    let updated_jar = set_session_cookie(jar, user.id);
 
     Ok((
         updated_jar,
@@ -158,9 +159,7 @@ async fn login(
     users::update_last_login(&mut tx, user.id).await.map_err(internal_error)?;
     tx.commit().await.map_err(internal_error)?;
 
-    let mut cookie = Cookie::new("session_id", user.id.to_string());
-    cookie.set_path("/");
-    let updated_jar = jar.add(cookie);
+    let updated_jar = set_session_cookie(jar, user.id);
 
     Ok((
         updated_jar,

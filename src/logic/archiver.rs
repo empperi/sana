@@ -97,25 +97,33 @@ async fn handle_message(message: async_nats::jetstream::message::Message, state:
     let sequence = info.stream_sequence;
 
     if channel_name == "system.channels" {
-        if let Ok(channel) = serde_json::from_str::<crate::db::channels::Channel>(&payload) {
-            archive_channel(channel, message, state).await;
-        } else {
-            tracing::warn!("Archiver: Failed to parse channel, acking and skipping: {}", payload);
-            let _ = message.ack().await;
-        }
+        handle_system_channel_message(&payload, message, state).await;
     } else {
-        match serde_json::from_str::<crate::messages::ChannelEntry>(&payload) {
-            Ok(crate::messages::ChannelEntry::Message(chat_msg)) => {
-                archive_chat_message(sequence, chat_msg, message, state).await;
-            },
-            Ok(_) => {
-                // Skip archiving system notifications (joins, etc)
-                let _ = message.ack().await;
-            },
-            Err(e) => {
-                tracing::warn!("Archiver: Failed to parse entry as ChannelEntry: {}. Error: {}", payload, e);
-                let _ = message.ack().await;
-            }
+        handle_chat_entry_message(&payload, sequence, message, state).await;
+    }
+}
+
+async fn handle_system_channel_message(payload: &str, message: async_nats::jetstream::message::Message, state: &AppState) {
+    if let Ok(channel) = serde_json::from_str::<crate::db::channels::Channel>(payload) {
+        archive_channel(channel, message, state).await;
+    } else {
+        tracing::warn!("Archiver: Failed to parse channel, acking and skipping: {}", payload);
+        let _ = message.ack().await;
+    }
+}
+
+async fn handle_chat_entry_message(payload: &str, sequence: u64, message: async_nats::jetstream::message::Message, state: &AppState) {
+    match serde_json::from_str::<crate::messages::ChannelEntry>(payload) {
+        Ok(crate::messages::ChannelEntry::Message(chat_msg)) => {
+            archive_chat_message(sequence, chat_msg, message, state).await;
+        },
+        Ok(_) => {
+            // Skip archiving system notifications (joins, etc)
+            let _ = message.ack().await;
+        },
+        Err(e) => {
+            tracing::warn!("Archiver: Failed to parse entry as ChannelEntry: {}. Error: {}", payload, e);
+            let _ = message.ack().await;
         }
     }
 }

@@ -11,30 +11,16 @@ use frontend::components::sidebar::Sidebar;
 use frontend::components::chat_window::ChatWindow;
 use frontend::components::auth::{Login, Register};
 use frontend::components::join_channel_modal::JoinChannelModal;
-use frontend::services::websocket::{WebSocketService, ConnectionStatus, StompClient};
+use frontend::services::websocket::{WebSocketService, StompClient};
 use frontend::types::{ChatMessage, ChannelEntry};
 use frontend::logic::ChatState;
 use frontend::stomp;
 use frontend::Route;
-
-async fn fetch_channels() -> Result<Vec<frontend::types::Channel>, String> {
-    let response = Request::get("/api/channels")
-        .credentials(RequestCredentials::Include)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-
-    if response.status() == 200 {
-        response.json::<Vec<frontend::types::Channel>>().await.map_err(|e| e.to_string())
-    } else {
-        Err(format!("Failed to fetch channels: {}", response.status()))
-    }
-}
+use frontend::hooks::{use_auth_check, use_chat_websocket, use_channels};
 
 async fn fetch_historical_messages(channel_id: Uuid, limit: i64, before: Option<chrono::DateTime<Utc>>) -> Result<Vec<frontend::types::ChatMessage>, String> {
     let mut url = format!("/api/channels/{}/messages?limit={}", channel_id, limit);
     if let Some(ts) = before {
-        // Simple encoding for URL
         let ts_str = ts.to_rfc3339().replace(':', "%3A").replace('+', "%2B");
         url.push_str(&format!("&before={}", ts_str));
     }
@@ -54,42 +40,11 @@ async fn fetch_historical_messages(channel_id: Uuid, limit: i64, before: Option<
 
 #[function_component(ChatApp)]
 pub fn chat_app() -> Html {
-    let navigator = use_navigator().unwrap();
-    let auth_check_done = use_state(|| false);
-
-    // Initial Auth Check
-    {
-        let navigator = navigator.clone();
-        let auth_check_done = auth_check_done.clone();
-        use_effect_with((), move |_| {
-            wasm_bindgen_futures::spawn_local(async move {
-                let resp = Request::get(&frontend::get_api_url("/api/auth/me"))
-                    .credentials(RequestCredentials::Include)
-                    .send()
-                    .await;
-                match resp {
-                    Ok(r) if r.status() == 200 => {
-                        let content_type = r.headers().get("content-type").unwrap_or_default();
-                        if content_type.contains("application/json") {
-                            auth_check_done.set(true);
-                        } else {
-                            navigator.push(&Route::Login);
-                        }
-                    }
-                    _ => {
-                        navigator.push(&Route::Login);
-                    }
-                }
-            });
-            || {}
-        });
-    }
+    let auth_check_done = use_auth_check();
 
     let chat_state = use_state(ChatState::new);
-    let ws_service = use_mut_ref(|| None::<Rc<WebSocketService>>);
     let state_ref = use_mut_ref(ChatState::new);
 
-    // Sync ref with state
     {
         let state_ref = state_ref.clone();
         use_effect_with(chat_state.clone(), move |chat_state| {
@@ -101,67 +56,9 @@ pub fn chat_app() -> Html {
     let is_join_modal_open = use_state(|| false);
     let is_modal_create_mode = use_state(|| false);
 
-    // Initialize WebSocket
-    {
-        let chat_state = chat_state.clone();
-        let state_ref = state_ref.clone();
-        let ws_service_ref = ws_service.clone();
-        let auth_check_done_val = *auth_check_done;
+    let ws_service = use_chat_websocket(auth_check_done, chat_state.clone(), state_ref.clone());
 
-        use_effect_with(auth_check_done_val, move |&done| {
-            if done {
-                let on_message = create_on_message_callback(chat_state.clone(), state_ref.clone());
-                let on_system_message = create_on_system_message_callback(chat_state.clone(), state_ref.clone(), ws_service_ref.clone());
-                let on_connected = create_on_connected_callback(chat_state.clone(), state_ref.clone());
-                let on_status_change = create_on_status_change_callback(chat_state.clone(), state_ref.clone(), ws_service_ref.clone());
-
-                let service = Rc::new(WebSocketService::connect(on_message, on_system_message, on_connected, on_status_change));
-                *ws_service_ref.borrow_mut() = Some(service);
-            }
-            
-            let ws_service_ref = ws_service_ref.clone();
-            move || {
-                if let Some(service) = ws_service_ref.borrow_mut().take() {
-                    service.stop();
-                }
-            }
-        });
-    }
-
-    // Fetch channels from database
-    {
-        let chat_state = chat_state.clone();
-        let state_ref = state_ref.clone();
-        let ws_service_ref = ws_service.clone();
-        let auth_check_done_val = *auth_check_done;
-
-        use_effect_with(auth_check_done_val, move |&done| {
-            if done {
-                wasm_bindgen_futures::spawn_local(async move {
-                    match fetch_channels().await {
-                        Ok(channels) => {
-                            let mut state = (*state_ref.borrow()).clone();
-                            state.set_channels(channels);
-                            
-                            // Subscribe to all channels
-                            if let Some(service) = &*ws_service_ref.borrow() {
-                                for channel in &state.channels {
-                                    service.send(stomp::create_subscribe_frame(channel, None, None));
-                                }
-                            }
-                            
-                            *state_ref.borrow_mut() = state.clone();
-                            chat_state.set(state);
-                        },
-                        Err(e) => {
-                            gloo_console::error!(format!("Failed to fetch channels: {}", e));
-                        }
-                    }
-                });
-            }
-            || {}
-        });
-    }
+    use_channels(auth_check_done, chat_state.clone(), state_ref.clone(), ws_service.clone());
 
     let on_switch_channel = {
         let chat_state = chat_state.clone();
@@ -329,7 +226,7 @@ pub fn chat_app() -> Html {
         })
     };
 
-    if !*auth_check_done {
+    if !auth_check_done {
         return html! { <div>{ "Loading..." }</div> };
     }
 
@@ -348,85 +245,6 @@ pub fn chat_app() -> Html {
         on_close_sidebar,
         on_load_history
     )
-}
-
-fn create_on_message_callback(chat_state: UseStateHandle<ChatState>, state_ref: Rc<RefCell<ChatState>>) -> Callback<(String, ChannelEntry)> {
-    Callback::from(move |(channel, entry)| {
-        let mut state = (*state_ref.borrow()).clone();
-        state.handle_message(channel, entry);
-        *state_ref.borrow_mut() = state.clone();
-        chat_state.set(state);
-    })
-}
-
-fn create_on_system_message_callback(
-    chat_state: UseStateHandle<ChatState>, 
-    state_ref: Rc<RefCell<ChatState>>, 
-    ws_service_ref: Rc<RefCell<Option<Rc<WebSocketService>>>>
-) -> Callback<(String, String)> {
-    Callback::from(move |(_topic, body): (String, String)| {
-        let mut state = (*state_ref.borrow()).clone();
-        if let Some(channel_name) = state.handle_system_message(body) {
-            if let Some(service) = &*ws_service_ref.borrow() {
-                service.send(stomp::create_subscribe_frame(&channel_name, None, None));
-            }
-            *state_ref.borrow_mut() = state.clone();
-            chat_state.set(state);
-        } else {
-            // Even if no subscription is needed, we might have updated the ID or cleared pending state
-            let current_state = (*state_ref.borrow()).clone();
-            if state != current_state {
-                *state_ref.borrow_mut() = state.clone();
-                chat_state.set(state);
-            }
-        }
-    })
-}
-
-fn create_on_connected_callback(chat_state: UseStateHandle<ChatState>, state_ref: Rc<RefCell<ChatState>>) -> Callback<(String, Uuid)> {
-    Callback::from(move |(username, user_id)| {
-        let mut state = (*state_ref.borrow()).clone();
-        state.set_user_info(username, user_id);
-        *state_ref.borrow_mut() = state.clone();
-        chat_state.set(state);
-    })
-}
-
-fn create_on_status_change_callback(
-    chat_state: UseStateHandle<ChatState>, 
-    state_ref: Rc<RefCell<ChatState>>, 
-    ws_service_ref: Rc<RefCell<Option<Rc<WebSocketService>>>>
-) -> Callback<ConnectionStatus> {
-    Callback::from(move |status| {
-        let mut state = (*state_ref.borrow()).clone();
-        state.set_connection_status(status);
-        if status == ConnectionStatus::Connected {
-            if let Some(service) = &*ws_service_ref.borrow() {
-                sync_subscriptions_on_connect(service, &state);
-            }
-        }
-        *state_ref.borrow_mut() = state.clone();
-        chat_state.set(state);
-    })
-}
-
-fn sync_subscriptions_on_connect(service: &Rc<WebSocketService>, state: &ChatState) {
-    service.send(stomp::create_subscribe_frame("system.channels", None, None));
-    for (channel, entries) in &state.messages {
-        let last_seq = entries.iter().rev().find_map(|e| {
-            if let ChannelEntry::Message(m) = e {
-                m.seq
-            } else {
-                None
-            }
-        });
-        service.send(stomp::create_subscribe_frame(channel, None, last_seq));
-    }
-    for channel in &state.channels {
-        if !state.messages.contains_key(channel) {
-            service.send(stomp::create_subscribe_frame(channel, None, None));
-        }
-    }
 }
 
 fn handle_send_message(

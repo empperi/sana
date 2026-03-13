@@ -5,6 +5,7 @@ pub mod services;
 pub mod types;
 pub mod stomp;
 pub mod logic;
+pub mod hooks;
 
 #[derive(Clone, Routable, PartialEq)]
 pub enum Route {
