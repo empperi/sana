@@ -15,10 +15,6 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
-      nats:
-        image: nats:latest
-        ports:
-          - 4222:4222
       postgres:
         image: postgres:16
         env:
@@ -35,6 +31,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Start NATS with JetStream
+        run: docker run -d --name nats -p 4222:4222 nats:latest -js
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
