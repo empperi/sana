@@ -10,12 +10,17 @@ use crate::auth::UserSession;
 use serde::Deserialize;
 use uuid::Uuid;
 
+use chrono::{DateTime, Utc};
+
+const MAX_MESSAGES_PER_PAGE: i64 = 1000;
+
 pub fn router() -> Router<CombinedState> {
     Router::new()
         .route("/", get(get_channels))
         .route("/", post(create_channel))
         .route("/unjoined", get(get_unjoined_channels))
         .route("/join", post(join_channel))
+        .route("/:id/messages", get(get_channel_messages))
 }
 
 #[derive(Deserialize)]
@@ -32,6 +37,12 @@ struct SearchQuery {
 #[derive(Deserialize)]
 struct JoinPayload {
     channel_id: Uuid,
+}
+
+#[derive(Deserialize)]
+struct MessagesQuery {
+    limit: i64,
+    before: Option<DateTime<Utc>>,
 }
 
 async fn get_channels(
@@ -130,4 +141,24 @@ async fn join_channel(
     }
 
     Ok(StatusCode::OK)
+}
+
+async fn get_channel_messages(
+    _session: UserSession,
+    State(state): State<AppState>,
+    axum::extract::Path(channel_id): axum::extract::Path<Uuid>,
+    Query(query): Query<MessagesQuery>,
+) -> Result<Json<Vec<crate::messages::ChatMessage>>, StatusCode> {
+    if query.limit > MAX_MESSAGES_PER_PAGE {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let messages = crate::db::messages::get_messages(&state.db_pool, channel_id, query.limit, query.before, false)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch channel messages: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    Ok(Json(messages))
 }

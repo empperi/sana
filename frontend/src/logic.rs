@@ -73,6 +73,43 @@ impl ChatState {
         }
     }
 
+    pub fn prepend_historical_messages(&mut self, channel: String, mut history: Vec<ChannelEntry>) {
+        let messages = self.messages.entry(channel).or_insert_with(Vec::new);
+        
+        // The REST API returns messages in DESC order (newest of history first).
+        // We want them in ASC order in our state.
+        history.reverse();
+
+        let mut new_entries = Vec::new();
+        for entry in history {
+            let entry_id = match &entry {
+                ChannelEntry::Message(m) => m.id,
+                ChannelEntry::UserJoined { id, .. } => *id,
+            };
+            
+            // Deduplicate: check if it already exists
+            let exists = messages.iter().any(|e| {
+                let id = match e {
+                    ChannelEntry::Message(m) => m.id,
+                    ChannelEntry::UserJoined { id, .. } => *id,
+                };
+                id == entry_id
+            });
+            
+            if !exists {
+                new_entries.push(entry);
+            }
+        }
+        
+        // Prepend non-duplicate historical messages
+        // Since history is older, they go to the beginning.
+        // We assume 'history' is already sorted chronologically (oldest to newest among the batch).
+        if !new_entries.is_empty() {
+            new_entries.extend(messages.drain(..));
+            *messages = new_entries;
+        }
+    }
+
     pub fn handle_system_message(&mut self, body: String) -> Option<String> {
         if let Ok(channel) = serde_json::from_str::<Channel>(&body) {
             let name = channel.name.clone();

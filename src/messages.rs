@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
 
+const MAX_LIVE_HISTORY: usize = 100;
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ChatMessage {
     pub id: Uuid,
@@ -58,6 +60,9 @@ impl MessageStore {
             id == entry_id
         }) {
             channel_entries.push(entry);
+            if channel_entries.len() > MAX_LIVE_HISTORY {
+                channel_entries.remove(0);
+            }
         }
     }
 

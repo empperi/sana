@@ -31,6 +31,71 @@ fn test_handle_message_current_channel() {
     assert!(state.unread_channels.is_empty());
 }
 
+
+#[test]
+fn test_prepend_historical_messages() {
+    let mut state = ChatState::new();
+    let channel_id = Uuid::new_v4();
+    state.channel_id_map.insert("General".to_string(), channel_id);
+
+    let msg1 = ChatMessage {
+        id: Uuid::new_v4(),
+        channel_id,
+        user_id: Uuid::new_v4(),
+        user: "Alice".to_string(),
+        timestamp: Utc::now() - chrono::Duration::minutes(20),
+        message: "msg 1 (oldest)".to_string(),
+        pending: false,
+        seq: Some(1),
+    };
+    let msg2 = ChatMessage {
+        id: Uuid::new_v4(),
+        channel_id,
+        user_id: Uuid::new_v4(),
+        user: "Alice".to_string(),
+        timestamp: Utc::now() - chrono::Duration::minutes(10),
+        message: "msg 2 (middle)".to_string(),
+        pending: false,
+        seq: Some(2),
+    };
+    let msg3 = ChatMessage {
+        id: Uuid::new_v4(),
+        channel_id,
+        user_id: Uuid::new_v4(),
+        user: "Bob".to_string(),
+        timestamp: Utc::now(),
+        message: "msg 3 (newest)".to_string(),
+        pending: false,
+        seq: Some(3),
+    };
+
+    // Add msg3 first (simulating what's already in the channel)
+    state.handle_message("General".to_string(), ChannelEntry::Message(msg3.clone()));
+
+    // Prepend msg2 and msg1 in DESC order (simulating REST API response: newest of history first)
+    let history = vec![
+        ChannelEntry::Message(msg2.clone()),
+        ChannelEntry::Message(msg1.clone()),
+    ];
+    state.prepend_historical_messages("General".to_string(), history);
+
+    let msgs = state.messages.get("General").unwrap();
+    assert_eq!(msgs.len(), 3);
+
+    // Final order should be ASC: msg1, msg2, msg3
+    if let ChannelEntry::Message(m1) = &msgs[0] {
+        assert_eq!(m1.message, "msg 1 (oldest)");
+    } else { panic!("expected message 1"); }
+
+    if let ChannelEntry::Message(m2) = &msgs[1] {
+        assert_eq!(m2.message, "msg 2 (middle)");
+    } else { panic!("expected message 2"); }
+
+    if let ChannelEntry::Message(m3) = &msgs[2] {
+        assert_eq!(m3.message, "msg 3 (newest)");
+    } else { panic!("expected message 3"); }
+}
+
 #[test]
 fn test_handle_message_other_channel() {
     let mut state = ChatState::new();
@@ -48,7 +113,6 @@ fn test_handle_message_other_channel() {
     let entry = ChannelEntry::Message(msg);
     
     state.handle_message("other".to_string(), entry);
-    
     assert!(state.unread_channels.contains("other"));
 }
 

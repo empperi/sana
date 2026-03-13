@@ -22,19 +22,8 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(nats_client: Client, jetstream: async_nats::jetstream::Context, db_pool: PgPool) -> Self {
-        let mut channels = HashMap::new();
-        let mut channel_ids = HashMap::new();
-
-        // Hardcode "General" channel ID for now to ensure consistency across replicas 
-        // until we have a proper channel creation/loading flow.
-        let general_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
-        
-        let (tx_gen, _rx_gen) = broadcast::channel(100);
-        channels.insert("General".to_string(), tx_gen);
-        channel_ids.insert("General".to_string(), general_id);
-        
-        let (tx_sys, _rx_sys) = broadcast::channel(100);
-        channels.insert("system.channels".to_string(), tx_sys);
+        let channels = HashMap::new();
+        let channel_ids = HashMap::new();
 
         Self {
             channels: Arc::new(Mutex::new(channels)),
@@ -44,6 +33,29 @@ impl AppState {
             message_store: Arc::new(MessageStore::new()),
             db_pool,
         }
+    }
+
+    pub async fn load_channels_from_db(&self) -> Result<(), sqlx::Error> {
+        let channels = crate::db::channels::get_all_channels(&self.db_pool).await?;
+        
+        let mut ids = self.channel_ids.lock().unwrap();
+        let mut chans = self.channels.lock().unwrap();
+        
+        for c in channels {
+            ids.insert(c.name.clone(), c.id);
+            chans.entry(c.name.clone()).or_insert_with(|| {
+                let (tx, _rx) = broadcast::channel(100);
+                tx
+            });
+        }
+
+        // Also ensure system.channels exists in chans map
+        chans.entry("system.channels".to_string()).or_insert_with(|| {
+            let (tx, _rx) = broadcast::channel(100);
+            tx
+        });
+
+        Ok(())
     }
 }
 

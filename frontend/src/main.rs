@@ -1,7 +1,7 @@
 use yew::prelude::*;
 use yew_router::prelude::*;
 use uuid::Uuid;
-use chrono::Utc;
+use chrono::{Utc, DateTime};
 use std::rc::Rc;
 use std::cell::RefCell;
 use gloo_net::http::Request;
@@ -28,6 +28,27 @@ async fn fetch_channels() -> Result<Vec<frontend::types::Channel>, String> {
         response.json::<Vec<frontend::types::Channel>>().await.map_err(|e| e.to_string())
     } else {
         Err(format!("Failed to fetch channels: {}", response.status()))
+    }
+}
+
+async fn fetch_historical_messages(channel_id: Uuid, limit: i64, before: Option<chrono::DateTime<Utc>>) -> Result<Vec<frontend::types::ChatMessage>, String> {
+    let mut url = format!("/api/channels/{}/messages?limit={}", channel_id, limit);
+    if let Some(ts) = before {
+        // Simple encoding for URL
+        let ts_str = ts.to_rfc3339().replace(':', "%3A").replace('+', "%2B");
+        url.push_str(&format!("&before={}", ts_str));
+    }
+
+    let response = Request::get(&url)
+        .credentials(RequestCredentials::Include)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if response.status() == 200 {
+        response.json::<Vec<frontend::types::ChatMessage>>().await.map_err(|e| e.to_string())
+    } else {
+        Err(format!("Failed to fetch historical messages: {}", response.status()))
     }
 }
 
@@ -283,6 +304,31 @@ pub fn chat_app() -> Html {
         Callback::from(move |_| is_mobile_sidebar_open.set(false))
     };
 
+    let on_load_history = {
+        let chat_state = chat_state.clone();
+        let state_ref = state_ref.clone();
+        Callback::from(move |(channel_name, before): (String, Option<DateTime<Utc>>)| {
+            let state = (*state_ref.borrow()).clone();
+            let state_ref = state_ref.clone();
+            let chat_state = chat_state.clone();
+            
+            if let Some(channel_id) = state.channel_id_map.get(&channel_name).cloned() {
+                wasm_bindgen_futures::spawn_local(async move {
+                    match fetch_historical_messages(channel_id, 100, before).await {
+                        Ok(messages) => {
+                            let mut current_state = (*state_ref.borrow()).clone();
+                            let entries = messages.into_iter().map(ChannelEntry::Message).collect();
+                            current_state.prepend_historical_messages(channel_name, entries);
+                            *state_ref.borrow_mut() = current_state.clone();
+                            chat_state.set(current_state);
+                        }
+                        Err(e) => gloo_console::error!(format!("Failed to load history: {}", e)),
+                    }
+                });
+            }
+        })
+    };
+
     if !*auth_check_done {
         return html! { <div>{ "Loading..." }</div> };
     }
@@ -299,7 +345,8 @@ pub fn chat_app() -> Html {
         on_join_channel,
         *is_mobile_sidebar_open,
         on_toggle_sidebar,
-        on_close_sidebar
+        on_close_sidebar,
+        on_load_history
     )
 }
 
@@ -427,6 +474,7 @@ fn render_app(
     is_mobile_sidebar_open: bool,
     on_toggle_sidebar: Callback<()>,
     on_close_sidebar: Callback<()>,
+    on_load_history: Callback<(String, Option<DateTime<Utc>>)>,
 ) -> Html {
     let messages = chat_state.messages
         .get(&chat_state.current_channel)
@@ -461,6 +509,7 @@ fn render_app(
                 current_username={chat_state.username.clone()}
                 on_send_message={on_send_message}
                 on_toggle_sidebar={on_toggle_sidebar}
+                on_load_history={on_load_history}
             />
             <JoinChannelModal 
                 is_open={is_join_modal_open}

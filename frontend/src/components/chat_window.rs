@@ -1,10 +1,8 @@
 use yew::prelude::*;
 use crate::types::ChannelEntry;
 use crate::components::profile_menu::ProfileMenu;
-use chrono::{DateTime, Local};
-use web_sys::{HtmlElement, HtmlInputElement};
-use gloo_events::EventListener;
-use wasm_bindgen::JsCast;
+use chrono::{DateTime, Local, Utc};
+use web_sys::HtmlElement;
 
 #[derive(Properties, PartialEq)]
 pub struct ChatWindowProps {
@@ -13,6 +11,7 @@ pub struct ChatWindowProps {
     pub current_username: String,
     pub on_send_message: Callback<String>,
     pub on_toggle_sidebar: Callback<()>,
+    pub on_load_history: Callback<(String, Option<chrono::DateTime<Utc>>)>,
 }
 
 #[function_component(ChatWindow)]
@@ -22,63 +21,50 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
     let input_ref = use_node_ref();
     let show_new_messages_notification = use_state(|| false);
     let is_user_scrolled_up = use_state(|| false);
+    let last_requested_history = use_state(|| None::<chrono::DateTime<Utc>>);
+    let prev_messages_len = use_state(|| 0);
+    let prev_channel = use_state(|| props.current_channel.clone());
+    let last_scroll_height = use_state(|| 0);
 
-    // Effect to redirect global typing to the message input
-    {
-        let input_ref = input_ref.clone();
-        use_effect_with((), move |_| {
-            let document = web_sys::window().unwrap().document().unwrap();
-            let listener = EventListener::new(&document, "keydown", move |event| {
-                let event = event.dyn_ref::<web_sys::KeyboardEvent>().unwrap();
-                
-                // Don't intercept if user is using a modifier key (Cmd, Ctrl, Alt)
-                if event.meta_key() || event.ctrl_key() || event.alt_key() {
-                    return;
-                }
-
-                // Check if the key is a single character (printable)
-                if event.key().chars().count() == 1 {
-                    let active_element = web_sys::window()
-                        .unwrap()
-                        .document()
-                        .unwrap()
-                        .active_element();
-
-                    if let Some(active) = active_element {
-                        let tag_name = active.tag_name().to_uppercase();
-                        if tag_name == "INPUT" || tag_name == "TEXTAREA" {
-                            // Already focusing an input
-                            return;
-                        }
-                    }
-
-                    // Not focusing an input, redirect to message input
-                    if let Some(input) = input_ref.cast::<HtmlInputElement>() {
-                        input.focus().unwrap();
-                    }
-                }
-            });
-
-            move || drop(listener)
-        });
+    // Reset state on channel switch
+    if *prev_channel != props.current_channel {
+        prev_channel.set(props.current_channel.clone());
+        last_requested_history.set(None);
+        prev_messages_len.set(props.messages.len());
+        is_user_scrolled_up.set(false);
+        last_scroll_height.set(0);
     }
 
-    // Effect to handle scrolling when messages change
+    // Effect to maintain scroll position when new messages arrive (history or new)
     {
         let history_ref = history_ref.clone();
         let is_user_scrolled_up = is_user_scrolled_up.clone();
         let show_new_messages_notification = show_new_messages_notification.clone();
         let messages_len = props.messages.len();
+        let prev_len = *prev_messages_len;
+        let prev_len_state = prev_messages_len.clone();
+        let last_sh = last_scroll_height.clone();
 
         use_effect_with(messages_len, move |_| {
-            if !*is_user_scrolled_up {
-                if let Some(element) = history_ref.cast::<HtmlElement>() {
-                    element.set_scroll_top(element.scroll_height());
+            if let Some(element) = history_ref.cast::<HtmlElement>() {
+                let current_sh = element.scroll_height();
+                
+                if !*is_user_scrolled_up && messages_len > prev_len {
+                    // Normal new message at bottom
+                    element.set_scroll_top(current_sh);
+                } else if *is_user_scrolled_up && messages_len > prev_len {
+                     // Might be history load
+                     let sh_diff = current_sh - *last_sh;
+                     if sh_diff > 0 && element.scroll_top() < 200 {
+                         // Likely history prepended
+                         element.set_scroll_top(element.scroll_top() + sh_diff);
+                     } else if element.scroll_top() > 100 {
+                         show_new_messages_notification.set(true);
+                     }
                 }
-            } else {
-                 // If scrolled up and new message arrives (length increased), show notification
-                 show_new_messages_notification.set(true);
+                last_sh.set(current_sh);
             }
+            prev_len_state.set(messages_len);
             || {}
         });
     }
@@ -113,12 +99,19 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
         let history_ref = history_ref.clone();
         let is_user_scrolled_up = is_user_scrolled_up.clone();
         let show_new_messages_notification = show_new_messages_notification.clone();
+        let on_load_history = props.on_load_history.clone();
+        let messages = props.messages.clone();
+        let channel = props.current_channel.clone();
+        let last_requested = last_requested_history.clone();
+        let last_sh = last_scroll_height.clone();
 
         Callback::from(move |_| {
             if let Some(element) = history_ref.cast::<HtmlElement>() {
                 let scroll_top = element.scroll_top();
                 let scroll_height = element.scroll_height();
                 let client_height = element.client_height();
+
+                last_sh.set(scroll_height);
 
                 let is_at_bottom = (scroll_height - scroll_top - client_height).abs() < 10;
 
@@ -127,6 +120,21 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                     show_new_messages_notification.set(false);
                 } else {
                     is_user_scrolled_up.set(true);
+                }
+
+                // Check if we hit the top to load history
+                if scroll_top < 100 && !messages.is_empty() {
+                    let oldest_msg_ts = messages.iter().find_map(|e| match e {
+                        ChannelEntry::Message(m) => Some(m.timestamp),
+                        ChannelEntry::UserJoined { timestamp, .. } => Some(*timestamp),
+                    });
+
+                    if let Some(ts) = oldest_msg_ts {
+                        if *last_requested != Some(ts) {
+                            last_requested.set(Some(ts));
+                            on_load_history.emit((channel.clone(), Some(ts)));
+                        }
+                    }
                 }
             }
         })

@@ -95,6 +95,8 @@ async fn main() {
     };
 
     let app_state = AppState::new(nats_client.clone(), jetstream, db_pool);
+    app_state.load_channels_from_db().await.expect("Failed to load channels from database");
+
     let combined_state = CombinedState {
         app: app_state.clone(),
         cookie_key,

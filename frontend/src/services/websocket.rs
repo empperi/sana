@@ -61,7 +61,7 @@ impl WebSocketService {
             
             loop {
                 // Check if we should stop before trying to connect
-                if stop_rx.try_next().is_ok() { break; }
+                if stop_rx.try_recv().is_ok() { break; }
 
                 on_status_change.emit(ConnectionStatus::Reconnecting);
                 if let Ok(ws) = WebSocket::open(&ws_url) {
@@ -179,7 +179,7 @@ impl WebSocketService {
         R: Stream<Item = Result<Message, WebSocketError>> + Unpin,
     {
         let mut pending = HashSet::new();
-        while let Ok(Some(msg)) = rx.try_next() {
+        while let Ok(msg) = rx.try_recv() {
             if msg.starts_with("SUBSCRIBE") {
                 let (final_msg, receipt_id) = prepare_subscription_frame(msg);
                 if let Some(rid) = receipt_id { pending.insert(rid); }

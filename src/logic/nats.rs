@@ -4,12 +4,11 @@ use crate::state::AppState;
 pub async fn start_nats_subscriber(state: AppState) {
     let jetstream = state.jetstream.clone();
     
-    // Use an ephemeral ordered consumer to get ALL messages from the stream
-    // This ensures that even if the backend restarts, it will catch up and broadcast everything.
-    // Frontend idempotency will handle duplicates.
+    // Use an ephemeral ordered consumer to get ONLY NEW messages from the stream.
+    // History is served from the database and bridging in-memory store.
     let mut messages = jetstream.get_stream("SANA").await.unwrap()
         .create_consumer(async_nats::jetstream::consumer::pull::OrderedConfig {
-            deliver_policy: async_nats::jetstream::consumer::DeliverPolicy::All,
+            deliver_policy: async_nats::jetstream::consumer::DeliverPolicy::New,
             ..Default::default()
         })
         .await

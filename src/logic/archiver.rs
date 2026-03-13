@@ -8,14 +8,34 @@ use crate::messages::ChatMessage;
 pub async fn start(state: AppState) {
     let jetstream = state.jetstream.clone();
     
+    let deliver_policy = match jetstream.get_stream("SANA").await {
+        Ok(mut stream) => {
+            let info = stream.info().await.ok();
+            let first_stream_seq = info.map(|i| i.state.first_sequence).unwrap_or(1);
+            let last_db_seq = crate::db::messages::get_max_seq(&state.db_pool).await.unwrap_or(None);
+
+            match last_db_seq {
+                Some(db_seq) if db_seq + 1 >= first_stream_seq => {
+                    async_nats::jetstream::consumer::DeliverPolicy::ByStartSequence { start_sequence: db_seq + 1 }
+                },
+                _ => async_nats::jetstream::consumer::DeliverPolicy::All
+            }
+        },
+        Err(e) => {
+            tracing::error!("Archiver: Failed to get stream: {}", e);
+            async_nats::jetstream::consumer::DeliverPolicy::All
+        }
+    };
+
+    tracing::info!("Archiver: Starting with deliver policy: {:?}", deliver_policy);
+
     // Create a pull consumer with a durable_name to ensure we don't miss messages
-    // and share the load across multiple instances if they use the same name.
     let consumer = match jetstream.get_stream("SANA").await.unwrap()
         .get_or_create_consumer(
             "postgres-archiver",
             async_nats::jetstream::consumer::pull::Config {
                 durable_name: Some("postgres-archiver".to_string()),
-                deliver_policy: async_nats::jetstream::consumer::DeliverPolicy::All,
+                deliver_policy,
                 ..Default::default()
             }
         )
@@ -46,6 +66,7 @@ pub async fn start(state: AppState) {
 async fn handle_message(message: async_nats::jetstream::message::Message, state: &AppState) {
     let subject = message.subject.to_string();
     let Some(encoded_channel_name) = subject.strip_prefix("topic.") else { 
+        tracing::warn!("Archiver: Received message with invalid subject: {}", subject);
         let _ = message.ack().await;
         return; 
     };
@@ -54,6 +75,7 @@ async fn handle_message(message: async_nats::jetstream::message::Message, state:
         Some(name) => name,
         None if encoded_channel_name == "system.channels" => encoded_channel_name.to_string(),
         None => {
+            tracing::warn!("Archiver: Failed to decode channel name from subject: {}", encoded_channel_name);
             let _ = message.ack().await;
             return;
         }
@@ -62,7 +84,8 @@ async fn handle_message(message: async_nats::jetstream::message::Message, state:
     let payload = String::from_utf8_lossy(&message.payload).to_string();
     let info = match message.info() {
         Ok(info) => info,
-        Err(_) => {
+        Err(e) => {
+            tracing::error!("Archiver: Failed to get message info: {}", e);
             let _ = message.ack().await;
             return;
         }
@@ -77,19 +100,18 @@ async fn handle_message(message: async_nats::jetstream::message::Message, state:
             let _ = message.ack().await;
         }
     } else {
-        if let Ok(entry) = serde_json::from_str::<crate::messages::ChannelEntry>(&payload) {
-            match entry {
-                crate::messages::ChannelEntry::Message(chat_msg) => {
-                    archive_chat_message(sequence, chat_msg, message, state).await;
-                },
-                _ => {
-                    // Skip archiving system notifications (joins, etc)
-                    let _ = message.ack().await;
-                }
+        match serde_json::from_str::<crate::messages::ChannelEntry>(&payload) {
+            Ok(crate::messages::ChannelEntry::Message(chat_msg)) => {
+                archive_chat_message(sequence, chat_msg, message, state).await;
+            },
+            Ok(_) => {
+                // Skip archiving system notifications (joins, etc)
+                let _ = message.ack().await;
+            },
+            Err(e) => {
+                tracing::warn!("Archiver: Failed to parse entry as ChannelEntry: {}. Error: {}", payload, e);
+                let _ = message.ack().await;
             }
-        } else {
-            tracing::warn!("Archiver: Failed to parse entry, acking and skipping: {}", payload);
-            let _ = message.ack().await;
         }
     }
 }
