@@ -12,35 +12,109 @@ pub struct ChatState {
     pub username: String,
     pub user_id: Uuid,
     pub messages: HashMap<String, Vec<ChannelEntry>>,
+    pub last_read_message_map: HashMap<String, Option<Uuid>>,
+    pub last_read_message_index: HashMap<String, Option<usize>>,
     pub unread_channels: HashSet<String>,
+    pub subscribed_channels: HashSet<String>,
     pub connection_status: ConnectionStatus,
 }
 
 impl ChatState {
     pub fn new() -> Self {
-        let mut channel_id_map = HashMap::new();
-        // Hardcoded "General" ID matching backend for now
-        channel_id_map.insert("General".to_string(), Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap());
-
         Self {
-            channels: vec!["General".to_string()],
-            channel_id_map,
+            channels: Vec::new(),
+            channel_id_map: HashMap::new(),
             pending_channels: HashSet::new(),
-            current_channel: "General".to_string(),
+            current_channel: "General".to_string(), // Keep as default selection
             username: String::new(),
             user_id: Uuid::nil(),
             messages: HashMap::new(),
+            last_read_message_map: HashMap::new(),
+            last_read_message_index: HashMap::new(),
             unread_channels: HashSet::new(),
+            subscribed_channels: HashSet::new(),
             connection_status: ConnectionStatus::Disconnected,
         }
     }
 
     pub fn handle_message(&mut self, channel: String, entry: ChannelEntry) {
-        let messages = self.messages.entry(channel.clone()).or_insert_with(Vec::new);
+        match entry {
+            ChannelEntry::Metadata { last_read_message_id } => {
+                self.last_read_message_map.insert(channel.clone(), last_read_message_id);
+                self.update_read_index(&channel);
+                return;
+            }
+            ChannelEntry::Batch(entries) => {
+                for e in entries {
+                    self.handle_single_entry(&channel, e);
+                }
+                return;
+            }
+            ChannelEntry::ReadMarker { user_id, message_id } => {
+                if user_id == self.user_id {
+                    self.last_read_message_map.insert(channel.clone(), Some(message_id));
+                    self.update_read_index(&channel);
+                }
+                return;
+            }
+            _ => {
+                self.handle_single_entry(&channel, entry);
+            }
+        }
+    }
+
+    fn update_read_index(&mut self, channel: &str) {
+        let last_id = self.last_read_message_map.get(channel).cloned().flatten();
+        let messages = self.messages.get(channel);
+        
+        let index = if let (Some(id), Some(msgs)) = (last_id, messages) {
+            msgs.iter().position(|e| {
+                match e {
+                    ChannelEntry::Message(m) => m.id == id,
+                    ChannelEntry::UserJoined { id: eid, .. } => *eid == id,
+                    _ => false,
+                }
+            })
+        } else {
+            None
+        };
+
+        self.last_read_message_index.insert(channel.to_string(), index);
+        self.recalculate_unread(channel);
+    }
+
+    fn recalculate_unread(&mut self, channel: &str) {
+        if channel == self.current_channel {
+            self.unread_channels.remove(channel);
+            return;
+        }
+
+        let msgs = self.messages.get(channel);
+        let read_idx = self.last_read_message_index.get(channel).cloned().flatten();
+
+        let has_unread = match (msgs, read_idx) {
+            (Some(msgs), Some(idx)) => {
+                // If the last read message is not the last message in the list
+                idx < msgs.len() - 1
+            }
+            (Some(msgs), None) => !msgs.is_empty(),
+            _ => false,
+        };
+
+        if has_unread {
+            self.unread_channels.insert(channel.to_string());
+        } else {
+            self.unread_channels.remove(channel);
+        }
+    }
+
+    fn handle_single_entry(&mut self, channel: &str, entry: ChannelEntry) {
+        let messages = self.messages.entry(channel.to_string()).or_insert_with(Vec::new);
         
         let entry_id = match &entry {
             ChannelEntry::Message(m) => m.id,
             ChannelEntry::UserJoined { id, .. } => *id,
+            _ => return, // Should not happen here
         };
 
         // Find existing message by ID
@@ -48,6 +122,7 @@ impl ChatState {
             let id = match e {
                 ChannelEntry::Message(m) => m.id,
                 ChannelEntry::UserJoined { id, .. } => *id,
+                _ => Uuid::nil(),
             };
             id == entry_id
         }) {
@@ -62,19 +137,16 @@ impl ChatState {
             if should_update {
                 messages[pos] = entry;
             }
-            return;
+        } else {
+            // New message, add it
+            messages.push(entry);
         }
-
-        // New message, add it
-        messages.push(entry);
         
-        if channel != self.current_channel {
-            self.unread_channels.insert(channel);
-        }
+        self.update_read_index(channel);
     }
 
     pub fn prepend_historical_messages(&mut self, channel: String, mut history: Vec<ChannelEntry>) {
-        let messages = self.messages.entry(channel).or_insert_with(Vec::new);
+        let messages = self.messages.entry(channel.clone()).or_insert_with(Vec::new);
         
         // The REST API returns messages in DESC order (newest of history first).
         // We want them in ASC order in our state.
@@ -85,6 +157,7 @@ impl ChatState {
             let entry_id = match &entry {
                 ChannelEntry::Message(m) => m.id,
                 ChannelEntry::UserJoined { id, .. } => *id,
+                _ => continue, // REST API shouldn't return Metadata or Batch
             };
             
             // Deduplicate: check if it already exists
@@ -92,6 +165,7 @@ impl ChatState {
                 let id = match e {
                     ChannelEntry::Message(m) => m.id,
                     ChannelEntry::UserJoined { id, .. } => *id,
+                    _ => Uuid::nil(),
                 };
                 id == entry_id
             });
@@ -107,6 +181,7 @@ impl ChatState {
         if !new_entries.is_empty() {
             new_entries.extend(messages.drain(..));
             *messages = new_entries;
+            self.update_read_index(&channel);
         }
     }
 
@@ -133,8 +208,10 @@ impl ChatState {
     }
 
     pub fn switch_channel(&mut self, channel: String) {
+        let old_channel = self.current_channel.clone();
         self.current_channel = channel.clone();
         self.unread_channels.remove(&channel);
+        self.recalculate_unread(&old_channel);
     }
 
     pub fn set_connection_status(&mut self, status: ConnectionStatus) {

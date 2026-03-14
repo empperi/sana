@@ -1,8 +1,30 @@
 use sana::db;
-use sana::messages::ChatMessage;
+use sana::messages::{ChatMessage, MessageType};
 use chrono::Utc;
 use uuid::Uuid;
+use sqlx::PgPool;
 use crate::db::common::{TestContext, create_test_user, create_test_channel};
+
+#[tokio::test]
+async fn test_update_last_message_read() {
+    let ctx = TestContext::new("sana_test_read_marker").await;
+    let pool = &ctx.pool;
+
+    let (user_id, channel_id, message_id) = setup_user_channel_and_message(pool).await;
+
+    let mut tx = pool.begin().await.expect("Failed to start transaction");
+    db::messages::update_last_message_read(&mut tx, channel_id, user_id, message_id).await.expect("Failed to update read marker");
+    tx.commit().await.expect("Failed to commit transaction");
+
+    let (last_read,): (Uuid,) = sqlx::query_as("SELECT last_message_read FROM user_channels WHERE user_id = $1 AND channel_id = $2")
+        .bind(user_id)
+        .bind(channel_id)
+        .fetch_one(pool)
+        .await
+        .expect("Failed to fetch read marker");
+    
+    assert_eq!(last_read, message_id);
+}
 
 #[tokio::test]
 async fn test_db_migrations_and_connection() {
@@ -37,6 +59,7 @@ async fn test_message_insertion() {
         timestamp: Utc::now(),
         message: "Hello world".to_string(),
         seq: Some(10),
+        msg_type: MessageType::Chat,
     };
 
     let mut tx = pool.begin().await.expect("Failed to start transaction");
@@ -66,6 +89,7 @@ async fn test_message_insertion_idempotency() {
         timestamp: Utc::now(),
         message: "Hello world".to_string(),
         seq: Some(20),
+        msg_type: MessageType::Chat,
     };
 
     // Insert twice
@@ -82,4 +106,27 @@ async fn test_message_insertion_idempotency() {
         .await
         .expect("Failed to count messages");
     assert_eq!(count.0, 1, "Duplicate insertion should be ignored due to idempotency");
+}
+
+async fn setup_user_channel_and_message(pool: &PgPool) -> (Uuid, Uuid, Uuid) {
+    let user = create_test_user(pool, "test_user").await;
+    let channel = create_test_channel(pool, "test_channel").await;
+    
+    let mut tx = pool.begin().await.unwrap();
+    db::channels::join_channel(&mut tx, user.id, channel.id).await.unwrap();
+    
+    let msg = ChatMessage {
+        id: Uuid::new_v4(),
+        channel_id: channel.id,
+        user_id: user.id,
+        user: user.username.clone(),
+        timestamp: Utc::now(),
+        message: "Test message".to_string(),
+        seq: Some(1),
+        msg_type: MessageType::Chat,
+    };
+    db::messages::insert_message(&mut tx, 1, &msg).await.unwrap();
+    tx.commit().await.unwrap();
+    
+    (user.id, channel.id, msg.id)
 }

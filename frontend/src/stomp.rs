@@ -37,7 +37,7 @@ pub fn parse_frame(text: &str) -> Option<StompFrame> {
     } else if text.starts_with("MESSAGE") {
         let mut destination = String::new();
         let mut seq = None;
-        let parts: Vec<&str> = text.split("\n\n").collect();
+        let parts: Vec<&str> = text.splitn(2, "\n\n").collect();
         let headers = parts[0];
         for line in headers.lines() {
             if line.starts_with("destination:") {
@@ -77,4 +77,8 @@ pub fn create_subscribe_frame(channel: &str, receipt_id: Option<&str>, last_seen
 
 pub fn create_send_frame(channel: &str, message_id: &str, text: &str) -> String {
     format!("SEND\ndestination:/topic/{}\nmessage_id:{}\n\n{}\0", channel, message_id, text)
+}
+
+pub fn create_read_marker_frame(channel: &str, message_id: &str) -> String {
+    format!("SEND\ndestination:/topic/{}\nmessage-type:read_marker\n\n{}\0", channel, message_id)
 }

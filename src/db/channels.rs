@@ -77,7 +77,7 @@ pub async fn join_channel(
     channel_id: Uuid,
 ) -> Result<(), sqlx::Error> {
     sqlx::query(
-        "INSERT INTO channel_joins (user_id, channel_id) 
+        "INSERT INTO user_channels (user_id, channel_id) 
          VALUES ($1, $2) 
          ON CONFLICT DO NOTHING"
     )
@@ -96,7 +96,7 @@ pub async fn get_user_channels(
     let channels = sqlx::query_as::<_, Channel>(
         "SELECT c.id, c.name, c.is_private, c.created_at 
          FROM channels c
-         JOIN channel_joins cj ON c.id = cj.channel_id
+         JOIN user_channels cj ON c.id = cj.channel_id
          WHERE cj.user_id = $1
          ORDER BY c.name ASC"
     )
@@ -117,7 +117,7 @@ pub async fn search_unjoined_channels(
     let channels = sqlx::query_as::<_, Channel>(
         "SELECT id, name, is_private, created_at 
          FROM channels 
-         WHERE id NOT IN (SELECT channel_id FROM channel_joins WHERE user_id = $1)
+         WHERE id NOT IN (SELECT channel_id FROM user_channels WHERE user_id = $1)
          AND name ILIKE $2
          ORDER BY name ASC
          LIMIT $3"

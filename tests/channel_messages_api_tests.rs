@@ -4,6 +4,7 @@ use chrono::{DateTime, Duration, Utc};
 use sana::db;
 use sana::router::create_router;
 use sana::state::{AppState, CombinedState};
+use sana::messages::{ChatMessage, MessageType};
 use serde_json::Value;
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -99,9 +100,15 @@ fn auth_header(user_id: Uuid, key: Key) -> String {
 }
 
 async fn insert_msg(ctx: &TestContext, chan_id: Uuid, user: &db::users::User, text: &str, ts: DateTime<Utc>, seq: u64) {
-    let msg = sana::messages::ChatMessage {
-        id: Uuid::new_v4(), channel_id: chan_id, user_id: user.id,
-        user: user.username.clone(), timestamp: ts, message: text.to_string(), seq: Some(seq),
+    let msg = ChatMessage {
+        id: Uuid::new_v4(), 
+        channel_id: chan_id, 
+        user_id: user.id,
+        user: user.username.clone(), 
+        timestamp: ts, 
+        message: text.to_string(), 
+        seq: Some(seq),
+        msg_type: MessageType::Chat,
     };
     let mut tx = ctx.pool.begin().await.unwrap();
     db::messages::insert_message(&mut tx, seq, &msg).await.unwrap();

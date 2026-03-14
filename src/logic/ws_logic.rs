@@ -9,6 +9,7 @@ pub enum WsAction {
     SendToClient(String),
     Subscribe(String, Option<u64>), // channel, last_seen_seq
     PublishToNats(String, String, Option<String>, String), // subject, body, message_id, channel_name
+    PublishReadMarker(String, Uuid), // channel_name, message_id
     SendReceipt(String), // receipt-id
     None,
 }
@@ -30,16 +31,24 @@ pub fn decide(command: StompCommand, user_id: Uuid, username: &str) -> Vec<WsAct
         }
         StompCommand::Send { destination, body, headers } => {
             if let Some(channel_name) = destination.strip_prefix("/topic/") {
-                let message_id = headers.iter()
-                    .find(|(k, _)| k == "message_id")
-                    .map(|(_, v)| v.clone());
+                let message_type = headers.iter().find(|(k, _)| k == "message-type").map(|(_, v)| v.as_str());
 
-                actions.push(WsAction::PublishToNats(
-                    format!("topic.{}", crate::nats_util::encode(channel_name)), 
-                    body, 
-                    message_id,
-                    channel_name.to_string()
-                ));
+                if message_type == Some("read_marker") {
+                    if let Ok(last_read_id) = Uuid::parse_str(&body) {
+                        actions.push(WsAction::PublishReadMarker(channel_name.to_string(), last_read_id));
+                    }
+                } else {
+                    let message_id = headers.iter()
+                        .find(|(k, _)| k == "message_id")
+                        .map(|(_, v)| v.clone());
+
+                    actions.push(WsAction::PublishToNats(
+                        format!("topic.{}", crate::nats_util::encode(channel_name)), 
+                        body, 
+                        message_id,
+                        channel_name.to_string()
+                    ));
+                }
                 
                 if let Some((_, receipt_id)) = headers.iter().find(|(k, _)| k == "receipt") {
                     actions.push(WsAction::SendReceipt(receipt_id.clone()));
@@ -51,7 +60,7 @@ pub fn decide(command: StompCommand, user_id: Uuid, username: &str) -> Vec<WsAct
     actions
 }
 
-pub async fn handle_subscribe(channel_name: String, last_seen_seq: Option<u64>, state: &AppState, tx_internal: &tokio::sync::mpsc::Sender<String>) {
+pub async fn handle_subscribe(channel_name: String, last_seen_seq: Option<u64>, user_id: Uuid, state: &AppState, tx_internal: &tokio::sync::mpsc::Sender<String>) {
     tracing::info!("Subscribing to channel: {}", channel_name);
 
     if channel_name == "system.channels" {
@@ -59,15 +68,73 @@ pub async fn handle_subscribe(channel_name: String, last_seen_seq: Option<u64>, 
         return;
     }
 
-    // 1. Subscribe to broadcast FIRST to buffer live messages
+    // 1. Fetch channel ID and last read message ID
+    let channel_id = state.channel_ids.lock().unwrap().get(&channel_name).cloned();
+    let mut last_read_message_id = None;
+
+    if let Some(cid) = channel_id {
+        if let Ok(mut tx) = state.db_pool.begin().await {
+            if let Ok(last_read) = crate::db::messages::get_last_message_read(&mut tx, cid, user_id).await {
+                last_read_message_id = last_read;
+            }
+        }
+    }
+
+    // 2. Send Metadata message first
+    let metadata_entry = ChannelEntry::Metadata { last_read_message_id };
+    send_entry(&channel_name, metadata_entry, tx_internal).await;
+
+    // 3. Subscribe to broadcast FIRST to buffer live messages
     let tx = get_or_create_broadcast_channel(&channel_name, state);
     let live_rx = tx.subscribe();
 
-    // 2. Send history (DB + Bridging Store)
-    let last_db_seq = send_db_history(&channel_name, last_seen_seq, state, tx_internal).await;
-    send_bridging_history(&channel_name, last_db_seq, last_seen_seq, state, tx_internal).await;
+    // 4. Collect history
+    let mut combined_history = Vec::new();
+    let mut last_db_seq = 0;
 
-    // 3. Start forwarding buffered and future live messages
+    if let Some(cid) = channel_id {
+        if let Ok(mut db_tx) = state.db_pool.begin().await {
+            if let Ok(msgs) = crate::db::messages::get_messages(&mut db_tx, cid, 100, None, true).await {
+                for msg in msgs {
+                    let seq = msg.seq;
+                    if let Some(s) = seq { last_db_seq = last_db_seq.max(s); }
+                    if should_send(seq, last_seen_seq) {
+                        match msg.msg_type {
+                            crate::messages::MessageType::Join => {
+                                combined_history.push(ChannelEntry::UserJoined {
+                                    id: msg.id,
+                                    user_id: msg.user_id,
+                                    username: msg.user.clone(),
+                                    timestamp: msg.timestamp,
+                                });
+                            }
+                            crate::messages::MessageType::Chat => {
+                                combined_history.push(ChannelEntry::Message(msg));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    for entry in state.message_store.get_entries(&channel_name) {
+        let seq = match &entry {
+            ChannelEntry::Message(m) => m.seq,
+            _ => None,
+        };
+        if seq.map_or(true, |s| s > last_db_seq) && should_send(seq, last_seen_seq) {
+            combined_history.push(entry);
+        }
+    }
+
+    // 5. Send history in batches of 20
+    for chunk in combined_history.chunks(20) {
+        let batch_entry = ChannelEntry::Batch(chunk.to_vec());
+        send_entry(&channel_name, batch_entry, tx_internal).await;
+    }
+
+    // 6. Start forwarding buffered and future live messages
     spawn_forwarding_task(channel_name, live_rx, tx_internal.clone());
 }
 
@@ -75,38 +142,6 @@ async fn handle_system_subscribe(state: &AppState, tx_internal: &tokio::sync::mp
     send_initial_channels(state, tx_internal).await;
     let tx = get_or_create_broadcast_channel("system.channels", state);
     spawn_forwarding_task("system.channels".to_string(), tx.subscribe(), tx_internal.clone());
-}
-
-async fn send_db_history(channel_name: &str, last_seen: Option<u64>, state: &AppState, tx: &tokio::sync::mpsc::Sender<String>) -> u64 {
-    let channel_id = state.channel_ids.lock().unwrap().get(channel_name).cloned();
-    let Some(cid) = channel_id else { return 0; };
-
-    let Ok(msgs) = crate::db::messages::get_messages(&state.db_pool, cid, 100, None, true).await else { return 0; };
-
-    let mut last_seq = 0;
-    for msg in msgs {
-        let seq = msg.seq;
-        if let Some(s) = seq { last_seq = last_seq.max(s); }
-
-        if should_send(seq, last_seen) {
-            send_entry(channel_name, ChannelEntry::Message(msg), tx).await;
-        }
-    }
-    last_seq
-}
-
-async fn send_bridging_history(channel_name: &str, last_db_seq: u64, last_seen: Option<u64>, state: &AppState, tx: &tokio::sync::mpsc::Sender<String>) {
-    for entry in state.message_store.get_entries(channel_name) {
-        let seq = match &entry {
-            ChannelEntry::Message(m) => m.seq,
-            _ => None,
-        };
-
-        // Only send if it's newer than what we got from DB
-        if seq.map_or(true, |s| s > last_db_seq) && should_send(seq, last_seen) {
-            send_entry(channel_name, entry, tx).await;
-        }
-    }
 }
 
 fn should_send(seq: Option<u64>, last_seen: Option<u64>) -> bool {
@@ -229,6 +264,7 @@ pub async fn process_and_publish_message(
         timestamp: chrono::Utc::now(),
         message: body,
         seq: None,
+        msg_type: crate::messages::MessageType::Chat,
     };
 
     let entry = ChannelEntry::Message(chat_msg);
@@ -242,5 +278,14 @@ async fn publish_to_nats(subject: String, body: String, state: &AppState) {
     let payload = Bytes::from(body);
     if let Err(e) = state.nats_client.publish(subject, payload).await {
         tracing::error!("Failed to publish to NATS: {}", e);
+    }
+}
+
+pub async fn publish_read_marker(channel_name: &str, user_id: Uuid, message_id: Uuid, state: &AppState) {
+    let entry = ChannelEntry::ReadMarker { user_id, message_id };
+    tracing::debug!("Publishing ReadMarker to NATS for channel {}: user {} read message {}", channel_name, user_id, message_id);
+    if let Ok(json_body) = serde_json::to_string(&entry) {
+        let subject = format!("topic.{}", crate::nats_util::encode(channel_name));
+        publish_to_nats(subject, json_body, state).await;
     }
 }

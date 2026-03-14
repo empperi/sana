@@ -7,7 +7,7 @@ pub fn use_chat_scroll(
     messages: Vec<ChannelEntry>,
     current_channel: String,
     on_load_history: Callback<(String, Option<chrono::DateTime<chrono::Utc>>)>,
-) -> (NodeRef, UseStateHandle<bool>, Callback<Event>, Callback<MouseEvent>) {
+) -> (NodeRef, UseStateHandle<bool>, UseStateHandle<bool>, Callback<Event>, Callback<MouseEvent>) {
     let history_ref = use_node_ref();
     let show_new_messages_notification = use_state(|| false);
     let is_user_scrolled_up = use_state(|| false);
@@ -19,7 +19,7 @@ pub fn use_chat_scroll(
     if *prev_channel != current_channel {
         prev_channel.set(current_channel.clone());
         last_requested_history.set(None);
-        prev_messages_len.set(messages.len());
+        prev_messages_len.set(0); // Reset to 0 so initial messages trigger scroll
         is_user_scrolled_up.set(false);
         last_scroll_height.set(0);
     }
@@ -84,6 +84,7 @@ pub fn use_chat_scroll(
                     let oldest_msg_ts = messages.iter().find_map(|e| match e {
                         ChannelEntry::Message(m) => Some(m.timestamp),
                         ChannelEntry::UserJoined { timestamp, .. } => Some(*timestamp),
+                        _ => None,
                     });
 
                     if let Some(ts) = oldest_msg_ts {
@@ -111,5 +112,5 @@ pub fn use_chat_scroll(
         })
     };
 
-    (history_ref, show_new_messages_notification, on_scroll, scroll_to_bottom)
+    (history_ref, show_new_messages_notification, is_user_scrolled_up, on_scroll, scroll_to_bottom)
 }

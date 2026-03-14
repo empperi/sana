@@ -75,7 +75,8 @@ async fn test_message_persistence_to_db() {
     let mut persisted = false;
     for _ in 0..50 {
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        let msgs = db::messages::get_messages(&ctx.pool, channel.id, 10, None, false).await.unwrap();
+        let mut tx = ctx.pool.begin().await.unwrap();
+        let msgs = db::messages::get_messages(&mut tx, channel.id, 10, None, false).await.unwrap();
         if msgs.iter().any(|m| m.message == "Persistent Message") {
             persisted = true;
             break;

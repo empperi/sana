@@ -15,7 +15,7 @@ serde_json = "1"
 rand = "0.8"
 futures = "0.3"
 wasm-bindgen-futures = "0.4"
-web-sys = { version = "0.3", features = ["HtmlInputElement", "HtmlElement", "Element"] }
+web-sys = { version = "0.3", features = ["HtmlInputElement", "HtmlElement", "Element", "Performance"] }
 chrono = { version = "0.4", features = ["serde", "wasmbind"] }
 uuid = { version = "1.0", features = ["v4", "serde", "js"] }
 yew-router = "0.18.0"

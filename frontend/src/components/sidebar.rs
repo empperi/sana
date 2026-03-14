@@ -63,7 +63,7 @@ pub fn sidebar(props: &SidebarProps) -> Html {
                     { for props.channels.iter().map(|channel| {
                         let channel_name = channel.clone();
                         let is_active = props.current_channel == channel_name;
-                        let has_unread = props.unread_channels.contains(&channel_name);
+                        let has_unread = props.unread_channels.contains(&channel_name) && !is_active;
 
                         let li_classes = classes!(
                             if is_active { Some("active") } else { None },

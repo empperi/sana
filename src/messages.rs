@@ -6,7 +6,15 @@ use chrono::{DateTime, Utc};
 
 const MAX_LIVE_HISTORY: usize = 100;
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, sqlx::Type)]
+#[sqlx(type_name = "message_type", rename_all = "PascalCase")]
+#[serde(rename_all = "PascalCase")]
+pub enum MessageType {
+    Chat,
+    Join,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct ChatMessage {
     pub id: Uuid,
     pub channel_id: Uuid,
@@ -15,6 +23,14 @@ pub struct ChatMessage {
     pub timestamp: DateTime<Utc>,
     pub message: String,
     pub seq: Option<u64>,
+    pub msg_type: MessageType,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ReadMarker {
+    pub channel_id: Uuid,
+    pub user_id: Uuid,
+    pub last_message_read: Uuid,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -24,10 +40,22 @@ pub enum ChannelEntry {
     Message(ChatMessage),
     #[serde(rename = "join")]
     UserJoined {
-        id: Uuid,
+        id: Uuid, // unique event id
+        user_id: Uuid,
         username: String,
         timestamp: DateTime<Utc>,
-    }
+    },
+    #[serde(rename = "metadata")]
+    Metadata {
+        last_read_message_id: Option<Uuid>,
+    },
+    #[serde(rename = "batch")]
+    Batch(Vec<ChannelEntry>),
+    #[serde(rename = "read_marker")]
+    ReadMarker {
+        user_id: Uuid,
+        message_id: Uuid,
+    },
 }
 
 pub struct MessageStore {
@@ -47,22 +75,30 @@ impl MessageStore {
         let channel_entries = store.entry(channel.to_string()).or_insert_with(Vec::new);
 
         let entry_id = match &entry {
-            ChannelEntry::Message(m) => m.id,
-            ChannelEntry::UserJoined { id, .. } => *id,
+            ChannelEntry::Message(m) => Some(m.id),
+            ChannelEntry::UserJoined { id, .. } => Some(*id),
+            _ => None,
         };
 
-        // Idempotency check
-        if !channel_entries.iter().any(|e| {
-            let id = match e {
-                ChannelEntry::Message(m) => m.id,
-                ChannelEntry::UserJoined { id, .. } => *id,
-            };
-            id == entry_id
-        }) {
-            channel_entries.push(entry);
-            if channel_entries.len() > MAX_LIVE_HISTORY {
-                channel_entries.remove(0);
+        if let Some(id) = entry_id {
+            // Idempotency check for entries with IDs
+            if !channel_entries.iter().any(|e| {
+                match e {
+                    ChannelEntry::Message(m) => m.id == id,
+                    ChannelEntry::UserJoined { id: eid, .. } => *eid == id,
+                    _ => false,
+                }
+            }) {
+                channel_entries.push(entry);
             }
+        } else {
+            // For Metadata, Batch, ReadMarker - we don't store them in historical memory store
+            // but we might want to broadcast them (which is handled by nats.rs caller)
+            return;
+        }
+
+        if channel_entries.len() > MAX_LIVE_HISTORY {
+            channel_entries.remove(0);
         }
     }
 
@@ -78,6 +114,7 @@ impl MessageStore {
                 let id = match e {
                     ChannelEntry::Message(m) => m.id,
                     ChannelEntry::UserJoined { id, .. } => *id,
+                    _ => Uuid::nil(),
                 };
                 id == last_id
             }) {

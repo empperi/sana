@@ -73,13 +73,16 @@ async fn handle_socket(socket: WebSocket, state: AppState, user_id: Uuid, userna
                             }
                             WsAction::Subscribe(channel_name, last_seen_seq) => {
                                 if active_subscriptions.insert(channel_name.clone()) {
-                                    ws_logic::handle_subscribe(channel_name, last_seen_seq, &state, &tx_internal).await;
+                                    ws_logic::handle_subscribe(channel_name, last_seen_seq, user_id, &state, &tx_internal).await;
                                 } else {
                                     tracing::debug!("Already subscribed to channel: {}", channel_name);
                                 }
                             }
                             WsAction::PublishToNats(subject, body, message_id, channel_name) => {
                                  ws_logic::process_and_publish_message(subject, body, message_id, user_id, &username, &channel_name, &state).await;
+                            }
+                            WsAction::PublishReadMarker(channel_name, message_id) => {
+                                ws_logic::publish_read_marker(&channel_name, user_id, message_id, &state).await;
                             }
                             WsAction::SendReceipt(receipt_id) => {
                                 let response = format!("RECEIPT\nreceipt-id:{}\n\n\0", receipt_id);

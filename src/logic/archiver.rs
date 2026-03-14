@@ -1,6 +1,7 @@
 use futures::StreamExt;
 use crate::state::AppState;
 use crate::messages::ChatMessage;
+use uuid::Uuid;
 
 /// Starts the PostgreSQL archiver background task.
 /// This task subscribes to the NATS JetStream "SANA" stream using a durable consumer
@@ -16,7 +17,13 @@ pub async fn start_with_durable(state: AppState, durable_name: String) {
         Ok(mut stream) => {
             let info = stream.info().await.ok();
             let first_stream_seq = info.map(|i| i.state.first_sequence).unwrap_or(1);
-            let last_db_seq = crate::db::messages::get_max_seq(&state.db_pool).await.unwrap_or(None);
+            
+            let tx = state.db_pool.begin().await.ok();
+            let last_db_seq = if let Some(mut t) = tx {
+                crate::db::messages::get_max_seq(&mut t).await.unwrap_or(None)
+            } else {
+                None
+            };
 
             match last_db_seq {
                 Some(db_seq) if db_seq + 1 >= first_stream_seq => {
@@ -99,7 +106,7 @@ async fn handle_message(message: async_nats::jetstream::message::Message, state:
     if channel_name == "system.channels" {
         handle_system_channel_message(&payload, message, state).await;
     } else {
-        handle_chat_entry_message(&payload, sequence, message, state).await;
+        handle_chat_entry_message(&channel_name, &payload, sequence, message, state).await;
     }
 }
 
@@ -112,18 +119,72 @@ async fn handle_system_channel_message(payload: &str, message: async_nats::jetst
     }
 }
 
-async fn handle_chat_entry_message(payload: &str, sequence: u64, message: async_nats::jetstream::message::Message, state: &AppState) {
+async fn handle_chat_entry_message(channel_name: &str, payload: &str, sequence: u64, message: async_nats::jetstream::message::Message, state: &AppState) {
     match serde_json::from_str::<crate::messages::ChannelEntry>(payload) {
         Ok(crate::messages::ChannelEntry::Message(chat_msg)) => {
             archive_chat_message(sequence, chat_msg, message, state).await;
         },
+        Ok(crate::messages::ChannelEntry::UserJoined { id, user_id, username, timestamp }) => {
+            archive_join_event(channel_name, sequence, id, user_id, username, timestamp, message, state).await;
+        },
+        Ok(crate::messages::ChannelEntry::ReadMarker { user_id, message_id }) => {
+            archive_read_marker(channel_name, user_id, message_id, message, state).await;
+        }
         Ok(_) => {
-            // Skip archiving system notifications (joins, etc)
             let _ = message.ack().await;
         },
         Err(e) => {
             tracing::warn!("Archiver: Failed to parse entry as ChannelEntry: {}. Error: {}", payload, e);
             let _ = message.ack().await;
+        }
+    }
+}
+
+async fn archive_join_event(
+    channel_name: &str,
+    sequence: u64,
+    id: Uuid,
+    user_id: Uuid,
+    username: String,
+    timestamp: chrono::DateTime<chrono::Utc>,
+    message: async_nats::jetstream::message::Message,
+    state: &AppState
+) {
+    let result = async {
+        let mut tx = state.db_pool.begin().await?;
+        
+        let channel_id = sqlx::query_scalar::<_, Uuid>("SELECT id FROM channels WHERE name = $1")
+            .bind(channel_name)
+            .fetch_one(&mut *tx)
+            .await?;
+
+        let chat_msg = ChatMessage {
+            id,
+            channel_id,
+            user_id,
+            user: username.clone(),
+            timestamp,
+            message: format!("{} joined", username),
+            seq: Some(sequence),
+            msg_type: crate::messages::MessageType::Join,
+        };
+
+        crate::db::messages::insert_message(&mut tx, sequence, &chat_msg).await?;
+        tx.commit().await?;
+        Ok::<(), sqlx::Error>(())
+    }.await;
+
+    match result {
+        Ok(_) => {
+            let _ = message.ack().await;
+        }
+        Err(e) => {
+            if is_foreign_key_violation(&e) {
+                tracing::warn!("Archiver: Skipping join event for channel '{}' due to missing foreign key: {}", channel_name, e);
+                let _ = message.ack().await;
+            } else {
+                tracing::error!("Archiver: Failed to archive join event: {}", e);
+            }
         }
     }
 }
@@ -184,8 +245,55 @@ async fn archive_chat_message(
             }
         },
         Err(e) => {
-            tracing::error!("Archiver: Failed to insert message into DB: {}", e);
-            let _ = tx.rollback().await;
+            if is_foreign_key_violation(&e) {
+                tracing::warn!("Archiver: Skipping orphan message {} due to missing foreign key (likely from previous session): {}", sequence, e);
+                let _ = message.ack().await;
+            } else {
+                tracing::error!("Archiver: Failed to insert message into DB: {}", e);
+                let _ = tx.rollback().await;
+            }
         }
     }
+}
+
+async fn archive_read_marker(
+    channel_name: &str,
+    user_id: Uuid,
+    message_id: Uuid,
+    message: async_nats::jetstream::message::Message,
+    state: &AppState
+) {
+    let result = async {
+        let mut tx = state.db_pool.begin().await?;
+        crate::db::messages::update_last_message_read_by_name(&mut tx, channel_name, user_id, message_id).await?;
+        tx.commit().await?;
+        Ok::<(), sqlx::Error>(())
+    }.await;
+
+    match result {
+        Ok(_) => {
+            let _ = message.ack().await;
+        }
+        Err(e) => {
+            if is_foreign_key_violation(&e) {
+                // DO NOT ACK read markers on FK violation if they are recent?
+                // Actually, if it's an orphan marker for a non-existent channel name, we should ack.
+                // But here we know the channel name because it came from the subject.
+                
+                // Let's check if the message ID exists.
+                tracing::warn!("Archiver: Read marker FK violation for channel '{}'. Retrying later.", channel_name);
+                // Do not ack, NATS will redeliver.
+            } else {
+                tracing::error!("Archiver: Failed to update read marker in DB: {}", e);
+            }
+        }
+    }
+}
+
+fn is_foreign_key_violation(e: &sqlx::Error) -> bool {
+    if let Some(db_err) = e.as_database_error() {
+        // Postgres error code 23503 is foreign_key_violation
+        return db_err.code().map(|c| c == "23503").unwrap_or(false);
+    }
+    false
 }

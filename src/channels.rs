@@ -132,6 +132,7 @@ async fn join_channel(
     
     let join_event = crate::messages::ChannelEntry::UserJoined {
         id: Uuid::new_v4(),
+        user_id: user.id,
         username: user.username,
         timestamp: chrono::Utc::now(),
     };
@@ -153,7 +154,8 @@ async fn get_channel_messages(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    let messages = crate::db::messages::get_messages(&state.db_pool, channel_id, query.limit, query.before, false)
+    let mut tx = state.db_pool.begin().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let messages = crate::db::messages::get_messages(&mut tx, channel_id, query.limit, query.before, false)
         .await
         .map_err(|e| {
             tracing::error!("Failed to fetch channel messages: {}", e);

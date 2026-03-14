@@ -8,7 +8,8 @@
 
 # Coding style instructions
 
-1. Always prefer functional style over imperative style
+1. Use **only** pure functions unless Rust mechanics explicitly require otherwise OR if implementing side effect logic
+   to write data to external source such as database, NATS, websocket or file system
 2. Prefer immutable data over mutable unless it causes significant performance hit. If you do, ensure mutability is
    encapsulated in such a way that it cannot leak
 3. Use TDD and implement tests for everything
@@ -18,3 +19,40 @@
 7. Do not try to test private functions, use pure functions and functional style instead so testing public functions
    makes testing easy without excessive state setup
 8. Keep lines at maximum of 120 characters unless it would make code less readable to split a line
+9. On a rule of thumb, a function over 15 lines long is typically too long. Try to avoid longer functions unless
+   explicitly unavoidable (for example, frontend HTML component structure definitions)
+9. Any compilation warnings are explicitly forbidden, you **must** fix any warnings you encounter
+10. Avoid unnecessary casting or .to_string() calls unless required by Rust compiler to make the code work
+11. Nested code structures (if-statements, loops etc) should be avoided by using functions with return values instead
+
+# Architecture guidelines (non-negotiable)
+
+All architecture guidelines are non-negotiable and you must follow them unless explicitly told not to.
+
+## General
+
+- Strongly prefer acting on function return values instead of creating long call chains (command pattern))
+
+## Backend
+
+- Use controller-service-repository -layered architecture with similarly named source directories where
+    - **controller**: handles REST and STOMP parsing and dispatching
+    - **service**: contains all business logic, the only place where database transactions are opened or committed
+    - **repository**: contains functions for calling database or NATS
+- All inbound STOMP messages must be handled by pushing them with minimal logic to NATS and only when those messages
+  come back should they be processed (read your own writes architecture)
+- When implementing integration tests the test itself **must not** open database transactions, that is solely the
+  responsibility of the service layer business logic
+
+
+## Frontend
+
+- All visible UI functionality **must** be encapsulated into components which are easy to move to different place
+  in the UI
+- All UI state **must** be in one global data structure called "database". Only exception is component local state,
+  state that only makes sense in that component, example: input field suggestions
+- All UI components **must** subscribe to the changes in the "database" and update themselves when data changes
+- All business logic **must** be separated from the components unless it is explicitly business logic for the said
+  component
+- Only business logic is allowed to write to the "database", components may never directly do so
+- Components communicate with business logic and other components via events and effects (re-frame way)

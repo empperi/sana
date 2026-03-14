@@ -12,7 +12,7 @@ use frontend::components::chat_window::ChatWindow;
 use frontend::components::auth::{Login, Register};
 use frontend::components::join_channel_modal::JoinChannelModal;
 use frontend::services::websocket::{WebSocketService, StompClient};
-use frontend::types::{ChatMessage, ChannelEntry};
+use frontend::types::{ChatMessage, ChannelEntry, MessageType};
 use frontend::logic::ChatState;
 use frontend::stomp;
 use frontend::Route;
@@ -58,7 +58,7 @@ pub fn chat_app() -> Html {
 
     let ws_service = use_chat_websocket(auth_check_done, chat_state.clone(), state_ref.clone());
 
-    use_channels(auth_check_done, chat_state.clone(), state_ref.clone(), ws_service.clone());
+    use_channels(auth_check_done, chat_state.clone(), state_ref.clone());
 
     let on_switch_channel = {
         let chat_state = chat_state.clone();
@@ -123,6 +123,15 @@ pub fn chat_app() -> Html {
         let ws_service = ws_service.clone();
         Callback::from(move |text: String| {
             handle_send_message(text, &chat_state, &state_ref, &ws_service);
+        })
+    };
+
+    let on_mark_read = {
+        let ws_service = ws_service.clone();
+        Callback::from(move |(channel, message_id): (String, Uuid)| {
+            if let Some(service) = &*ws_service.borrow() {
+                service.send(stomp::create_read_marker_frame(&channel, &message_id.to_string()));
+            }
         })
     };
 
@@ -214,7 +223,17 @@ pub fn chat_app() -> Html {
                     match fetch_historical_messages(channel_id, 100, before).await {
                         Ok(messages) => {
                             let mut current_state = (*state_ref.borrow()).clone();
-                            let entries = messages.into_iter().map(ChannelEntry::Message).collect();
+                            let entries = messages.into_iter().map(|msg| {
+                                match msg.msg_type {
+                                    MessageType::Join => ChannelEntry::UserJoined {
+                                        id: msg.id,
+                                        user_id: msg.user_id,
+                                        username: msg.user.clone(),
+                                        timestamp: msg.timestamp,
+                                    },
+                                    MessageType::Chat => ChannelEntry::Message(msg),
+                                }
+                            }).collect();
                             current_state.prepend_historical_messages(channel_name, entries);
                             *state_ref.borrow_mut() = current_state.clone();
                             chat_state.set(current_state);
@@ -235,6 +254,7 @@ pub fn chat_app() -> Html {
         on_switch_channel, 
         on_create_channel, 
         on_send_message,
+        on_mark_read,
         on_open_join_modal,
         *is_join_modal_open,
         *is_modal_create_mode,
@@ -268,6 +288,7 @@ fn handle_send_message(
         message: text.clone(),
         pending: true,
         seq: None,
+        msg_type: MessageType::Chat,
     };
 
     state.add_pending_message(channel_name.clone(), pending_msg);
@@ -284,6 +305,7 @@ fn render_app(
     on_switch_channel: Callback<String>,
     on_create_channel: Callback<String>,
     on_send_message: Callback<String>,
+    on_mark_read: Callback<(String, Uuid)>,
     on_open_join_modal: Callback<bool>,
     is_join_modal_open: bool,
     is_modal_create_mode: bool,
@@ -326,6 +348,7 @@ fn render_app(
                 messages={messages}
                 current_username={chat_state.username.clone()}
                 on_send_message={on_send_message}
+                on_mark_read={on_mark_read}
                 on_toggle_sidebar={on_toggle_sidebar}
                 on_load_history={on_load_history}
             />

@@ -305,11 +305,18 @@ fn handle_incoming_frame(
             if let Some(channel_name) = destination.strip_prefix("/topic/") {
                 if channel_name == "system.channels" {
                     on_system_message.emit((channel_name.to_string(), body));
-                } else if let Ok(mut entry) = serde_json::from_str::<ChannelEntry>(&body) {
-                    if let ChannelEntry::Message(ref mut chat_msg) = entry {
-                        if seq.is_some() { chat_msg.seq = seq; }
+                } else {
+                    match serde_json::from_str::<ChannelEntry>(&body) {
+                        Ok(mut entry) => {
+                            if let ChannelEntry::Message(ref mut chat_msg) = entry {
+                                if seq.is_some() { chat_msg.seq = seq; }
+                            }
+                            on_message.emit((channel_name.to_string(), entry));
+                        }
+                        Err(e) => {
+                            web_sys::console::error_1(&format!("Failed to deserialize ChannelEntry: {}. Body: {}", e, body).into());
+                        }
                     }
-                    on_message.emit((channel_name.to_string(), entry));
                 }
             }
         }

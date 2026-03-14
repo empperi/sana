@@ -3,6 +3,7 @@ use crate::types::ChannelEntry;
 use crate::components::profile_menu::ProfileMenu;
 use chrono::{DateTime, Local, Utc};
 use crate::hooks::use_chat_scroll;
+use uuid::Uuid;
 
 #[derive(Properties, PartialEq)]
 pub struct ChatWindowProps {
@@ -10,6 +11,7 @@ pub struct ChatWindowProps {
     pub messages: Vec<ChannelEntry>,
     pub current_username: String,
     pub on_send_message: Callback<String>,
+    pub on_mark_read: Callback<(String, Uuid)>,
     pub on_toggle_sidebar: Callback<()>,
     pub on_load_history: Callback<(String, Option<chrono::DateTime<Utc>>)>,
 }
@@ -19,11 +21,79 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
     let input_value = use_state(String::new);
     let input_ref = use_node_ref();
 
-    let (history_ref, show_new_messages_notification, on_scroll, scroll_to_bottom) = use_chat_scroll(
+    let (history_ref, show_new_messages_notification, is_user_scrolled_up, on_scroll, scroll_to_bottom) = use_chat_scroll(
         props.messages.clone(),
         props.current_channel.clone(),
         props.on_load_history.clone(),
     );
+
+    let last_read_emitted = use_state(|| None::<Uuid>);
+    let last_emit_time = use_state(|| 0.0);
+
+    let prev_state_ref = use_mut_ref(|| (props.current_channel.clone(), props.messages.clone(), !*is_user_scrolled_up));
+
+    {
+        let (ref old_channel, ref old_msgs, old_was_at_bottom) = *prev_state_ref.borrow();
+        if old_channel != &props.current_channel {
+            if old_was_at_bottom {
+                if let Some(last_entry) = old_msgs.last() {
+                    let entry_id = match last_entry {
+                        ChannelEntry::Message(m) => Some(m.id),
+                        ChannelEntry::UserJoined { id, .. } => Some(*id),
+                        _ => None,
+                    };
+                    if let Some(id) = entry_id {
+                        props.on_mark_read.emit((old_channel.clone(), id));
+                    }
+                }
+            }
+        }
+    }
+    *prev_state_ref.borrow_mut() = (props.current_channel.clone(), props.messages.clone(), !*is_user_scrolled_up);
+
+    {
+        let messages = props.messages.clone();
+        let is_user_scrolled_up = is_user_scrolled_up.clone();
+        let on_mark_read = props.on_mark_read.clone();
+        let last_read_emitted = last_read_emitted.clone();
+        let last_emit_time = last_emit_time.clone();
+        let current_channel = props.current_channel.clone();
+        let prev_channel = use_state(|| props.current_channel.clone());
+
+        if *prev_channel != props.current_channel {
+            prev_channel.set(props.current_channel.clone());
+            last_read_emitted.set(None);
+            last_emit_time.set(0.0);
+        }
+
+        use_effect_with((messages, is_user_scrolled_up.clone(), current_channel.clone()), move |(msgs, scrolled_up, _)| {
+            if !**scrolled_up {
+                if let Some(last_entry) = msgs.last() {
+                    let (entry_id, is_pending) = match last_entry {
+                        ChannelEntry::Message(m) => (Some(m.id), m.pending),
+                        ChannelEntry::UserJoined { id, .. } => (Some(*id), false),
+                        _ => (None, false),
+                    };
+
+                    if let Some(id) = entry_id {
+                        if !is_pending {
+                            let now = web_sys::window().unwrap().performance().unwrap().now();
+                            let should_emit = last_read_emitted.as_ref() != Some(&id) 
+                                              && (*last_emit_time == 0.0 || now - *last_emit_time > 5000.0);
+
+                            if should_emit {
+                                on_mark_read.emit((current_channel.clone(), id));
+                                last_read_message_id_to_storage(&id);
+                                last_read_emitted.set(Some(id));
+                                last_emit_time.set(now);
+                            }
+                        }
+                    }
+                }
+            }
+            || {}
+        });
+    }
 
     let on_input = {
         let input_value = input_value.clone();
@@ -78,7 +148,7 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                                 </div>
                             }
                         },
-                        ChannelEntry::UserJoined { id, username, timestamp } => {
+                        ChannelEntry::UserJoined { id, username, timestamp, .. } => {
                             let local_time: DateTime<Local> = DateTime::from(*timestamp);
                             let time_str = local_time.format("%H:%M:%S").to_string();
                             html! {
@@ -90,6 +160,7 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                                 </div>
                             }
                         }
+                        ChannelEntry::Metadata { .. } | ChannelEntry::Batch(_) | ChannelEntry::ReadMarker { .. } => html! {}
                     }
                 }) }
             </div>
@@ -112,4 +183,8 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
             </footer>
         </div>
     }
+}
+
+fn last_read_message_id_to_storage(_id: &Uuid) {
+    // Optional: persist to local storage if desired, but for now we just emit to STOMP
 }

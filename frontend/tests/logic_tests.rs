@@ -1,12 +1,12 @@
 use frontend::logic::*;
-use frontend::types::{ChatMessage, Channel, ChannelEntry};
+use frontend::types::{ChatMessage, Channel, ChannelEntry, MessageType};
 use uuid::Uuid;
 use chrono::Utc;
 
 #[test]
 fn test_initial_state() {
     let state = ChatState::new();
-    assert_eq!(state.channels, vec!["General".to_string()]);
+    assert_eq!(state.channels, Vec::<String>::new());
     assert_eq!(state.current_channel, "General");
 }
 
@@ -22,6 +22,7 @@ fn test_handle_message_current_channel() {
         message: "hi".to_string(),
         pending: false,
         seq: None,
+        msg_type: MessageType::Chat,
     };
     let entry = ChannelEntry::Message(msg.clone());
     
@@ -47,6 +48,7 @@ fn test_prepend_historical_messages() {
         message: "msg 1 (oldest)".to_string(),
         pending: false,
         seq: Some(1),
+        msg_type: MessageType::Chat,
     };
     let msg2 = ChatMessage {
         id: Uuid::new_v4(),
@@ -57,6 +59,7 @@ fn test_prepend_historical_messages() {
         message: "msg 2 (middle)".to_string(),
         pending: false,
         seq: Some(2),
+        msg_type: MessageType::Chat,
     };
     let msg3 = ChatMessage {
         id: Uuid::new_v4(),
@@ -67,6 +70,7 @@ fn test_prepend_historical_messages() {
         message: "msg 3 (newest)".to_string(),
         pending: false,
         seq: Some(3),
+        msg_type: MessageType::Chat,
     };
 
     // Add msg3 first (simulating what's already in the channel)
@@ -109,6 +113,7 @@ fn test_handle_message_other_channel() {
         message: "hi".to_string(),
         pending: false,
         seq: None,
+        msg_type: MessageType::Chat,
     };
     let entry = ChannelEntry::Message(msg);
     
@@ -234,6 +239,7 @@ fn test_pending_message_replacement_different_user_id() {
         message: "hi".to_string(),
         pending: true,
         seq: None,
+        msg_type: MessageType::Chat,
     };
     state.add_pending_message("General".to_string(), pending);
     
@@ -247,6 +253,7 @@ fn test_pending_message_replacement_different_user_id() {
         message: "hi".to_string(),
         pending: false,
         seq: None,
+        msg_type: MessageType::Chat,
     };
     let confirmed_entry = ChannelEntry::Message(confirmed_msg.clone());
     state.handle_message("General".to_string(), confirmed_entry.clone());
@@ -276,6 +283,7 @@ fn test_message_update_with_seq() {
         message: "hello".to_string(),
         pending: false,
         seq: None,
+        msg_type: MessageType::Chat,
     };
     state.handle_message("General".to_string(), ChannelEntry::Message(initial_msg));
     
@@ -288,6 +296,7 @@ fn test_message_update_with_seq() {
         message: "hello".to_string(),
         pending: false,
         seq: Some(123),
+        msg_type: MessageType::Chat,
     };
     let updated_entry = ChannelEntry::Message(updated_msg);
     state.handle_message("General".to_string(), updated_entry.clone());

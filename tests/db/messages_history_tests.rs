@@ -1,5 +1,5 @@
 use sana::db;
-use sana::messages::ChatMessage;
+use sana::messages::{ChatMessage, MessageType};
 use chrono::{DateTime, Utc, Duration, TimeZone};
 use uuid::Uuid;
 use sqlx::PgPool;
@@ -12,7 +12,8 @@ async fn test_get_recent_messages() {
     let channel = create_test_channel(&ctx.pool, "chan1").await;
     setup_channel_history(&ctx.pool, channel.id, user.id, &user.username, 10).await;
 
-    let msgs = db::messages::get_messages(&ctx.pool, channel.id, 5, None, false).await.unwrap();
+    let mut tx = ctx.pool.begin().await.unwrap();
+    let msgs = db::messages::get_messages(&mut tx, channel.id, 5, None, false).await.unwrap();
 
     assert_eq!(msgs.len(), 5);
     assert_eq!(msgs[0].message, "Message 9");
@@ -28,7 +29,8 @@ async fn test_get_messages_before_timestamp() {
     
     // Get messages older than "Message 5" (base_time + 5s)
     let before_ts = base_time + Duration::seconds(5);
-    let msgs = db::messages::get_messages(&ctx.pool, channel.id, 5, Some(before_ts), false).await.unwrap();
+    let mut tx = ctx.pool.begin().await.unwrap();
+    let msgs = db::messages::get_messages(&mut tx, channel.id, 5, Some(before_ts), false).await.unwrap();
 
     assert_eq!(msgs.len(), 5);
     assert_eq!(msgs[0].message, "Message 4");
@@ -45,7 +47,8 @@ async fn test_get_messages_channel_isolation() {
     insert_test_message(&ctx.pool, channel1.id, user.id, &user.username, Utc::now(), 1, "Chan 1 Msg").await;
     insert_test_message(&ctx.pool, channel2.id, user.id, &user.username, Utc::now(), 2, "Chan 2 Msg").await;
 
-    let msgs = db::messages::get_messages(&ctx.pool, channel1.id, 10, None, false).await.unwrap();
+    let mut tx = ctx.pool.begin().await.unwrap();
+    let msgs = db::messages::get_messages(&mut tx, channel1.id, 10, None, false).await.unwrap();
 
     assert_eq!(msgs.len(), 1);
     assert_eq!(msgs[0].message, "Chan 1 Msg");
@@ -58,7 +61,8 @@ async fn test_get_messages_limit_handling() {
     let channel = create_test_channel(&ctx.pool, "chan1").await;
     setup_channel_history(&ctx.pool, channel.id, user.id, &user.username, 3).await;
 
-    let msgs = db::messages::get_messages(&ctx.pool, channel.id, 10, None, false).await.unwrap();
+    let mut tx = ctx.pool.begin().await.unwrap();
+    let msgs = db::messages::get_messages(&mut tx, channel.id, 10, None, false).await.unwrap();
 
     assert_eq!(msgs.len(), 3);
 }
@@ -70,11 +74,10 @@ async fn test_get_messages_order_asc() {
     let channel = create_test_channel(&ctx.pool, "chan1").await;
     setup_channel_history(&ctx.pool, channel.id, user.id, &user.username, 10).await;
 
-    let msgs = db::messages::get_messages(&ctx.pool, channel.id, 5, None, true).await.unwrap();
+    let mut tx = ctx.pool.begin().await.unwrap();
+    let msgs = db::messages::get_messages(&mut tx, channel.id, 5, None, true).await.unwrap();
 
     assert_eq!(msgs.len(), 5);
-    // When order_asc is true, it gets the 5 most recent, but returns them in ASC order.
-    // So the latest 5 are 5, 6, 7, 8, 9. Ordered ASC they should be 5, 6, 7, 8, 9.
     assert_eq!(msgs[0].message, "Message 5");
     assert_eq!(msgs[4].message, "Message 9");
 }
@@ -89,6 +92,7 @@ async fn insert_test_message(pool: &PgPool, channel_id: Uuid, user_id: Uuid, use
         timestamp,
         message: content.to_string(),
         seq: Some(seq),
+        msg_type: MessageType::Chat,
     };
     let mut tx = pool.begin().await.unwrap();
     db::messages::insert_message(&mut tx, seq, &msg).await.unwrap();

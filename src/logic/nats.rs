@@ -71,6 +71,10 @@ async fn handle_chat_message(channel_name: String, payload: String, sequence: u6
             chat_msg.seq = Some(sequence);
         }
 
+        if let crate::messages::ChannelEntry::ReadMarker { user_id, message_id } = &entry {
+            tracing::debug!("NATS: Received ReadMarker for channel {}: user {} read message {}", channel_name, user_id, message_id);
+        }
+
         state.message_store.add_entry(&channel_name, entry.clone());
 
         if let Ok(final_payload) = serde_json::to_string(&entry) {
