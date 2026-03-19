@@ -2,7 +2,7 @@
   "mcpServers": {
     "code-indexer": {
       "command": "docker",
-      "args": ["exec", "-i", "-e", "LOG_LEVEL=ERROR", "sana-code-indexer-1", "python", "-m", "code_index_mcp", "--transport", "stdio", "--project-path", "/project"]
+      "args": ["exec", "-i", "sana-code-indexer-1", "python", "-m", "code_index_mcp", "--project-path", "/project"]
     }
   }
 }
