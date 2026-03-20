@@ -2,7 +2,14 @@
   "mcpServers": {
     "code-indexer": {
       "command": "docker",
-      "args": ["exec", "-i", "sana-code-indexer-1", "python", "-m", "code_index_mcp", "--project-path", "/project"]
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-v",
+        "${PWD}:/workspace",
+        "ghcr.io/viperjuice/code-index-mcp:latest"
+      ]
     }
   }
 }

@@ -87,16 +87,11 @@ This project is optimized for agentic development. Please refer to the following
 - **[AGENTS.md](AGENTS.md)**: Defines the core operating principles and coding style instructions that must be followed.
 
 ### Supercharged AI Search (MCP)
+## Code Indexer
 
-This project includes a dedicated **Code Indexer** MCP (Model Context Protocol) server. When running, it allows AI agents (like Gemini CLI) to perform high-speed symbol lookups, deep code searching, and architectural analysis without reading every file.
+This project uses the [ViperJuice/Code-Index-MCP](https://github.com/ViperJuice/Code-Index-MCP) server for high-speed symbol lookups, deep code searching, and architectural analysis.
 
-To enable the indexer during development:
-
-```bash
-docker-compose --profile dev up -d code-indexer
-```
-
-Once started, the agent will automatically detect the indexer and use it for all codebase navigation tasks.
+The indexer is configured to run automatically via the `.gemini/settings.json` file using a Docker container (`ghcr.io/viperjuice/code-index-mcp:latest`). No manual startup is required; the Gemini CLI will initiate the indexer as needed when performing codebase navigation tasks.
 
 ## Testing
 
