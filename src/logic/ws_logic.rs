@@ -69,7 +69,7 @@ pub async fn handle_subscribe(channel_name: String, last_seen_seq: Option<u64>, 
     }
 
     // 1. Fetch channel ID and last read message ID
-    let channel_id = state.channel_ids.lock().unwrap().get(&channel_name).cloned();
+    let channel_id = state.channel_ids.get(&channel_name).map(|r| *r.value());
     let mut last_read_message_id = None;
 
     if let Some(cid) = channel_id {
@@ -187,10 +187,7 @@ fn spawn_forwarding_task(channel_name: String, mut rx: tokio::sync::broadcast::R
 }
 
 async fn send_initial_channels(state: &AppState, tx_internal: &tokio::sync::mpsc::Sender<String>) {
-    let channels_list: Vec<String> = {
-        let channels = state.channels.lock().unwrap();
-        channels.keys().cloned().collect()
-    };
+    let channels_list: Vec<String> = state.channels.iter().map(|r| r.key().clone()).collect();
     
     for name in channels_list {
         if name != "system.channels" {
@@ -201,9 +198,7 @@ async fn send_initial_channels(state: &AppState, tx_internal: &tokio::sync::mpsc
 }
 
 fn get_or_create_broadcast_channel(channel_name: &str, state: &AppState) -> tokio::sync::broadcast::Sender<String> {
-    let mut channels = state.channels.lock().unwrap();
-    
-    channels.entry(channel_name.to_string())
+    state.channels.entry(channel_name.to_string())
         .or_insert_with(|| {
             let (tx, _rx) = tokio::sync::broadcast::channel(100);
             tx
@@ -222,10 +217,7 @@ pub async fn process_and_publish_message(
 ) {
     let id = message_id.and_then(|sid| Uuid::parse_str(&sid).ok()).unwrap_or_else(Uuid::new_v4);
     
-    let channel_id = {
-        let ids = state.channel_ids.lock().unwrap();
-        ids.get(channel_name).cloned()
-    };
+    let channel_id = state.channel_ids.get(channel_name).map(|r| *r.value());
 
     let channel_id = match channel_id {
         Some(id) => id,
@@ -240,8 +232,7 @@ pub async fn process_and_publish_message(
             };
             match crate::db::channels::get_channel_by_name(&mut tx, channel_name).await {
                 Ok(Some(c)) => {
-                    let mut ids = state.channel_ids.lock().unwrap();
-                    ids.insert(channel_name.to_string(), c.id);
+                    state.channel_ids.insert(channel_name.to_string(), c.id);
                     c.id
                 },
                 Ok(None) => {

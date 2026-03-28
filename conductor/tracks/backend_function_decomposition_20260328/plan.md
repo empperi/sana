@@ -1,10 +1,10 @@
 # Implementation Plan: Backend Function Decomposition
 
 ## Phase 1: State & Infrastructure
-- [ ] Task: Add `dashmap` dependency to root `Cargo.toml`
-- [ ] Task: Refactor `state.rs` to use `DashMap` and update `load_channels_from_db`
-- [ ] Task: Update call sites for channel maps to remove `.lock().await`
-- [ ] Task: Conductor - User Manual Verification 'State & Infrastructure' (Protocol in workflow.md)
+- [x] Task: Add `dashmap` dependency to root `Cargo.toml`
+- [x] Task: Refactor `state.rs` to use `DashMap` and update `load_channels_from_db`
+- [x] Task: Update call sites for channel maps to remove `.lock().await`
+- [x] Task: Conductor - User Manual Verification 'State & Infrastructure' (Protocol in workflow.md)
 
 ## Phase 2: Core Logic Refactoring
 - [ ] Task: Extract helper functions from `handle_subscribe()` in `ws_logic.rs`

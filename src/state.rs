@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use std::sync::{Mutex};
+use dashmap::DashMap;
 use tokio::sync::broadcast;
 use async_nats::Client;
 use sqlx::PgPool;
@@ -12,8 +11,8 @@ use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub channels: Arc<Mutex<HashMap<String, broadcast::Sender<String>>>>,
-    pub channel_ids: Arc<Mutex<HashMap<String, Uuid>>>,
+    pub channels: Arc<DashMap<String, broadcast::Sender<String>>>,
+    pub channel_ids: Arc<DashMap<String, Uuid>>,
     pub nats_client: Client,
     pub jetstream: async_nats::jetstream::Context,
     pub message_store: Arc<MessageStore>,
@@ -22,12 +21,9 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(nats_client: Client, jetstream: async_nats::jetstream::Context, db_pool: PgPool) -> Self {
-        let channels = HashMap::new();
-        let channel_ids = HashMap::new();
-
         Self {
-            channels: Arc::new(Mutex::new(channels)),
-            channel_ids: Arc::new(Mutex::new(channel_ids)),
+            channels: Arc::new(DashMap::new()),
+            channel_ids: Arc::new(DashMap::new()),
             nats_client,
             jetstream,
             message_store: Arc::new(MessageStore::new()),
@@ -38,19 +34,16 @@ impl AppState {
     pub async fn load_channels_from_db(&self) -> Result<(), sqlx::Error> {
         let channels = crate::db::channels::get_all_channels(&self.db_pool).await?;
         
-        let mut ids = self.channel_ids.lock().unwrap();
-        let mut chans = self.channels.lock().unwrap();
-        
         for c in channels {
-            ids.insert(c.name.clone(), c.id);
-            chans.entry(c.name.clone()).or_insert_with(|| {
+            self.channel_ids.insert(c.name.clone(), c.id);
+            self.channels.entry(c.name.clone()).or_insert_with(|| {
                 let (tx, _rx) = broadcast::channel(100);
                 tx
             });
         }
 
         // Also ensure system.channels exists in chans map
-        chans.entry("system.channels".to_string()).or_insert_with(|| {
+        self.channels.entry("system.channels".to_string()).or_insert_with(|| {
             let (tx, _rx) = broadcast::channel(100);
             tx
         });

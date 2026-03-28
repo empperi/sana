@@ -51,13 +51,9 @@ async fn handle_system_channels_message(payload: String, state: &AppState) {
     if let Ok(channel) = serde_json::from_str::<crate::db::channels::Channel>(&payload) {
         tracing::info!("NATS: Received new channel notification: {}", channel.name);
 
-        {
-            let mut channel_ids = state.channel_ids.lock().unwrap();
-            channel_ids.insert(channel.name.clone(), channel.id);
-        }
+        state.channel_ids.insert(channel.name.clone(), channel.id);
 
-        let channels = state.channels.lock().unwrap();
-        if let Some(tx) = channels.get("system.channels") {
+        if let Some(tx) = state.channels.get("system.channels") {
             let _ = tx.send(payload);
         }
     } else {
@@ -78,8 +74,7 @@ async fn handle_chat_message(channel_name: String, payload: String, sequence: u6
         state.message_store.add_entry(&channel_name, entry.clone());
 
         if let Ok(final_payload) = serde_json::to_string(&entry) {
-            let channels = state.channels.lock().unwrap();
-            if let Some(tx) = channels.get(&channel_name) {
+            if let Some(tx) = state.channels.get(&channel_name) {
                 let _ = tx.send(final_payload);
             }
         }
