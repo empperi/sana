@@ -8,6 +8,7 @@
 - **SQLx:** The database driver and toolkit for interacting with PostgreSQL, providing compile-time query verification and migrations.
 - **async-nats:** The client library for interacting with NATS JetStream for high-performance messaging.
 - **Tokio:** The underlying asynchronous runtime for high-throughput and low-latency networking.
+- **DashMap:** Used for efficient, concurrent in-memory state management (channels and message store) without global lock contention.
 
 ## Frontend Architecture
 - **Yew:** The WebAssembly framework used for building a fast and responsive user interface in Rust.
