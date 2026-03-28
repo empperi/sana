@@ -19,6 +19,11 @@
 - [x] Task: Create `frontend/tests/hooks_tests.rs` for `use_channels`, `use_chat_scroll`, and `use_auth_check`
 - [x] Task: Conductor - User Manual Verification 'Frontend Hook Tests' (Protocol in workflow.md)
 
-## Phase 5: Final Validation
-- [ ] Task: Run all backend and frontend tests to ensure total system health
-- [ ] Task: Conductor - User Manual Verification 'Final Validation' (Protocol in workflow.md)
+## Phase 5: Final Validation [checkpoint: 1e54ca7]
+- [x] Task: Run all backend and frontend tests to ensure total system health
+- [x] Task: Conductor - User Manual Verification 'Final Validation' (Protocol in workflow.md)
+
+## Phase 6: Review Fixes
+- [x] Task: Fix frontend compilation warnings (unused imports/dead code)
+- [x] Task: Add test for overlapping deduplication in `logic_tests.rs`
+- [x] Task: Conductor - User Manual Verification 'Review Fixes' (Protocol in workflow.md)

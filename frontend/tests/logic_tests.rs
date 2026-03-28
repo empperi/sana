@@ -313,6 +313,58 @@ fn test_message_update_with_seq() {
 }
 
 #[test]
+fn test_prepend_historical_messages_overlapping_deduplication() {
+    let mut state = ChatState::new();
+    let channel_id = Uuid::new_v4();
+    state.channel_id_map.insert("General".to_string(), channel_id);
+
+    let msg1 = ChatMessage {
+        id: Uuid::new_v4(),
+        channel_id,
+        user_id: Uuid::new_v4(),
+        user: "Alice".to_string(),
+        timestamp: Utc::now() - chrono::Duration::minutes(20),
+        message: "msg 1".to_string(),
+        pending: false,
+        seq: Some(1),
+        msg_type: MessageType::Chat,
+    };
+    let msg2 = ChatMessage {
+        id: Uuid::new_v4(),
+        channel_id,
+        user_id: Uuid::new_v4(),
+        user: "Alice".to_string(),
+        timestamp: Utc::now() - chrono::Duration::minutes(10),
+        message: "msg 2".to_string(),
+        pending: false,
+        seq: Some(2),
+        msg_type: MessageType::Chat,
+    };
+
+    // Add msg2 first
+    state.handle_message("General".to_string(), ChannelEntry::Message(msg2.clone()));
+
+    // Prepend msg1 and msg2 (overlapping)
+    let history = vec![
+        ChannelEntry::Message(msg2.clone()),
+        ChannelEntry::Message(msg1.clone()),
+    ];
+    state.prepend_historical_messages("General".to_string(), history);
+
+    let msgs = state.messages.get("General").unwrap();
+    assert_eq!(msgs.len(), 2); // Should not have 3 messages
+
+    // Order should be ASC: msg1, msg2
+    if let ChannelEntry::Message(m1) = &msgs[0] {
+        assert_eq!(m1.id, msg1.id);
+    } else { panic!("expected message 1"); }
+
+    if let ChannelEntry::Message(m2) = &msgs[1] {
+        assert_eq!(m2.id, msg2.id);
+    } else { panic!("expected message 2"); }
+}
+
+#[test]
 fn test_handle_batch_message() {
     let mut state = ChatState::new();
     let msg1 = ChatMessage {

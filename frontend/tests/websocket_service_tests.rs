@@ -1,7 +1,7 @@
 use frontend::services::websocket::*;
 use std::rc::Rc;
 use std::cell::RefCell;
-use futures::{sink::Sink, task::{Context, Poll}, SinkExt};
+use futures::{sink::Sink, task::{Context, Poll}};
 use gloo_net::websocket::{Message, WebSocketError};
 use std::pin::Pin;
 
