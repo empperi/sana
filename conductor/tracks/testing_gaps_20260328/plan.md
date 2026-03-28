@@ -5,10 +5,10 @@
 - [x] Task: Create `tests/state_tests.rs` to verify concurrent channel registration
 - [x] Task: Conductor - User Manual Verification 'Backend Core Logic Tests' (Protocol in workflow.md)
 
-## Phase 2: Backend Infrastructure Tests
+## Phase 2: Backend Infrastructure Tests [checkpoint: 6cfe6b9]
 - [x] Task: Create `tests/archiver_tests.rs` with mock NATS/DB interactions
 - [x] Task: Create `tests/nats_consumer_tests.rs` to verify broadcast relay
-- [ ] Task: Conductor - User Manual Verification 'Backend Infrastructure Tests' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Backend Infrastructure Tests' (Protocol in workflow.md)
 
 ## Phase 3: Frontend Logic & Service Tests
 - [ ] Task: Extend `frontend/tests/logic_tests.rs` with edge cases (Batch entries, out-of-order read markers)
