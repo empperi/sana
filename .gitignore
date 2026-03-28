@@ -26,6 +26,7 @@ Thumbs.db
 # Agentic Development
 .gemini/tmp/
 .gemini/skills/dist/*.skill
+.claude/settings.local.json
 
 gha-creds-*.json
 .playwright-mcp/

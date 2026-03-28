@@ -1,9 +1,9 @@
 # Operating principles (non-negotiable)
 
-1. **Smallest change that works**: Minimize blast radius; don't refactor adjacent code unless it meaningfully reduces 
+1. **Smallest change that works**: Minimize blast radius; don't refactor adjacent code unless it meaningfully reduces
    risk or complexity.
 2. **Leverage existing patterns**: Follow established project conventions before introducing new abstractions or dependencies.
-3. **Prove it works**: "Seems right" is not done. Validate with tests/build/lint and/or a reliable manual repro. 
+3. **Prove it works**: "Seems right" is not done. Validate with tests/build/lint and/or a reliable manual repro.
 4. **Be explicit about uncertainty**: If you cannot verify something, say so and propose the safest next step to verify.
 
 # Coding style instructions
@@ -31,7 +31,7 @@ All architecture guidelines are non-negotiable and you must follow them unless e
 
 ## General
 
-- Strongly prefer acting on function return values instead of creating long call chains (command pattern))
+- Strongly prefer acting on function return values instead of creating long call chains (command pattern)
 
 ## Backend
 
@@ -44,7 +44,6 @@ All architecture guidelines are non-negotiable and you must follow them unless e
 - When implementing integration tests the test itself **must not** open database transactions, that is solely the
   responsibility of the service layer business logic
 
-
 ## Frontend
 
 - All visible UI functionality **must** be encapsulated into components which are easy to move to different place
@@ -56,3 +55,28 @@ All architecture guidelines are non-negotiable and you must follow them unless e
   component
 - Only business logic is allowed to write to the "database", components may never directly do so
 - Components communicate with business logic and other components via events and effects (re-frame way)
+
+# Environment
+
+This project runs on **Windows with PowerShell Core (`pwsh`)**. Use PowerShell syntax for all shell commands —
+never bash or Unix shell syntax.
+
+# MCP tools
+
+- For symbol lookups (functions, structs, types, trait impls), high-level project mapping, and advanced searching,
+  always prioritize the `code-indexer` MCP server over grep/glob tools.
+- If the indexer is unavailable or fails, fall back to grep/glob/read tools.
+- After large batches of changes, call the indexer's `reindex` tool to keep its context current.
+- Whenever asked to "verify the UI", "check the page", or visually confirm a change, use the **Playwright** MCP
+  server to navigate the app and confirm the result.
+
+# Specialist agents / skills
+
+Four domain specialists are available. Delegate to them proactively for their areas:
+
+| Specialist | When to use |
+|---|---|
+| `rust-system-architect` | API endpoints, service/repository layer, SQLx queries, transactions, error handling, backend tests |
+| `yew-frontend-specialist` | Yew components, custom hooks, global state, Wasm performance, frontend tests |
+| `messaging-infra-specialist` | NATS consumers/subjects, STOMP frames, real-time delivery, reconnection logic |
+| `visual-ux-designer` | SCSS styling, responsive layout, loading states, toast notifications, accessibility |

@@ -44,3 +44,9 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  indexer:
+    image: ghcr.io/mosif16/index-mcp:latest
+    stdin_open: true
+    volumes:
+      - ./:/workspace

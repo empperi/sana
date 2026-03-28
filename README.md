@@ -33,7 +33,7 @@ docker-compose up -d nats db
 
 ### Environment Configuration
 
-The backend uses a combination of `.env` files and `config.json` for configuration. Environment variables take precedence over the JSON file. 
+The backend uses a combination of `.env` files and `config.json` for configuration. Environment variables take precedence over the JSON file.
 
 Create a `.env` file in the root directory for your local database and NATS connection:
 
@@ -58,7 +58,7 @@ By default, the server runs on `http://localhost:3000`.
 
 ### Running the Frontend (Watch Mode)
 
-The frontend is a Yew application located in the `frontend` directory. It uses Trunk to proxy API requests and WebSocket connections to the local backend on port `3000`. 
+The frontend is a Yew application located in the `frontend` directory. It uses Trunk to proxy API requests and WebSocket connections to the local backend on port `3000`.
 
 To run the frontend with hot-reloading:
 
@@ -81,17 +81,83 @@ Access the application at `http://localhost:8080`. The load balancer (NGINX) wil
 
 ## Agentic Development
 
-This project is optimized for agentic development. Please refer to the following files for guidance:
+This project is optimized for agentic development with both **Gemini CLI** and **Claude Code**. Core operating principles, coding standards, and architecture guidelines are defined in [AGENTS.md](AGENTS.md) and loaded automatically by both tools.
 
-- **[GEMINI.md](GEMINI.md)**: Contains foundational mandates and workspace-specific instructions for AI agents.
-- **[AGENTS.md](AGENTS.md)**: Defines the core operating principles and coding style instructions that must be followed.
+- **[AGENTS.md](AGENTS.md)**: Shared operating principles, coding style, and architecture guidelines.
+- **[GEMINI.md](GEMINI.md)**: Gemini-specific configuration (loaded automatically by Gemini CLI).
+- **[CLAUDE.md](CLAUDE.md)**: Claude-specific configuration (loaded automatically by Claude Code).
 
-### Supercharged AI Search (MCP)
-## Code Indexer
+### Activating Claude Code
 
-This project uses the [ViperJuice/Code-Index-MCP](https://github.com/ViperJuice/Code-Index-MCP) server for high-speed symbol lookups, deep code searching, and architectural analysis.
+Install Claude Code and start a session in the project root:
 
-The indexer is configured to run automatically via the `.gemini/settings.json` file using a Docker container (`ghcr.io/viperjuice/code-index-mcp:latest`). No manual startup is required; the Gemini CLI will initiate the indexer as needed when performing codebase navigation tasks.
+```bash
+npm install -g @anthropic-ai/claude-code
+claude
+```
+
+Claude Code will automatically load `CLAUDE.md` (which imports `AGENTS.md`) and connect to the configured MCP servers. Four domain-specific subagents are pre-configured in `.claude/agents/` and selected automatically based on the task at hand.
+
+### Activating Gemini CLI
+
+Install Gemini CLI and start a session in the project root:
+
+```bash
+npm install -g @google/gemini-cli
+gemini
+```
+
+Gemini CLI will automatically load `GEMINI.md` (which imports `AGENTS.md`) and connect to the configured MCP servers. Four domain-specific skills are pre-configured in `.gemini/skills/`.
+
+### Code Indexer (MCP)
+
+Both tools use the [ViperJuice/Code-Index-MCP](https://github.com/ViperJuice/Code-Index-MCP) server for high-speed symbol lookups, deep code searching, and architectural analysis. It runs automatically via the respective tool's `settings.json` using a Docker container — no manual startup required.
+
+### Optional: cargo check hook
+
+You can configure Claude Code to automatically run `cargo check` after every Rust file edit, surfacing compile errors back into the conversation immediately. This is configured in your personal, project-scoped `.claude/settings.local.json` (gitignored) so it only applies to this project and uses your own shell.
+
+**Windows (PowerShell Core)** — create `.claude/settings.local.json`:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -File .claude/hooks/cargo-check.ps1"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Mac / Linux** — create `.claude/settings.local.json`:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh .claude/hooks/cargo-check.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Both hook scripts are provided in `.claude/hooks/`. The Mac/Linux variant requires `python3` (pre-installed on modern macOS and most Linux distributions).
 
 ## Testing
 
