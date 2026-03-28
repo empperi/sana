@@ -10,10 +10,10 @@
 - [x] Task: Create `tests/nats_consumer_tests.rs` to verify broadcast relay
 - [x] Task: Conductor - User Manual Verification 'Backend Infrastructure Tests' (Protocol in workflow.md)
 
-## Phase 3: Frontend Logic & Service Tests
-- [~] Task: Extend `frontend/tests/logic_tests.rs` with edge cases (Batch entries, out-of-order read markers)
-- [ ] Task: Create `frontend/tests/websocket_service_tests.rs` with WebSocket mock
-- [ ] Task: Conductor - User Manual Verification 'Frontend Logic & Service Tests' (Protocol in workflow.md)
+## Phase 3: Frontend Logic & Service Tests [checkpoint: 3732091]
+- [x] Task: Extend `frontend/tests/logic_tests.rs` with edge cases (Batch entries, out-of-order read markers)
+- [x] Task: Create `frontend/tests/websocket_service_tests.rs` with WebSocket mock
+- [x] Task: Conductor - User Manual Verification 'Frontend Logic & Service Tests' (Protocol in workflow.md)
 
 ## Phase 4: Frontend Hook Tests
 - [ ] Task: Create `frontend/tests/hooks_tests.rs` for `use_channels`, `use_chat_scroll`, and `use_auth_check`
