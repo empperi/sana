@@ -4,11 +4,6 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [x] **Track: Testing Gaps**
-  *Link: [./tracks/testing_gaps_20260328/](./tracks/testing_gaps_20260328/)*
-
----
-
 - [ ] **Track: Error Handling & Resilience**
   *Link: [./tracks/error_handling_resilience_20260328/](./tracks/error_handling_resilience_20260328/)*
 
