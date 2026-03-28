@@ -1,4 +1,4 @@
-# Phase 3: Testing Gaps
+# Phase 4: Testing Gaps
 
 ## Objective
 Add tests for the critical untested code paths. Currently, the most complex and failure-prone
@@ -36,7 +36,7 @@ parts of both backend and frontend have no test coverage.
 
 **`tests/ws_logic_tests.rs`** — Highest priority
 
-Test the pure functions extracted in Phase 2:
+Test the pure functions extracted in Phase 3:
 - `fetch_db_history()` — returns correct entries, respects `last_seen_seq`
 - `merge_and_deduplicate()` — no duplicates, correct ordering
 - `resolve_channel_id()` — valid destination, missing channel, invalid prefix
@@ -44,7 +44,7 @@ Test the pure functions extracted in Phase 2:
 - `send_in_batches()` — batches of correct size, handles empty input
 - `decide()` — correct action for each STOMP command (SUBSCRIBE, SEND, DISCONNECT)
 
-Since Phase 2 extracts pure functions, these become straightforward unit tests with no DB/NATS
+Since Phase 3 extracts pure functions, these become straightforward unit tests with no DB/NATS
 dependency.
 
 **`tests/archiver_tests.rs`** — High priority
@@ -71,7 +71,7 @@ mock layer.
 - `load_channels_from_db()`: channels from DB appear in state after load
 - Channel lookup: correct UUID returned for known channel name
 
-After Phase 2 (DashMap migration), these tests verify the concurrent access patterns are safe.
+After Phase 3 (DashMap migration), these tests verify the concurrent access patterns are safe.
 
 ### Frontend
 
@@ -88,7 +88,7 @@ state machine transitions:
 
 **`frontend/tests/hooks_tests.rs`** — Medium priority
 
-After Phase 1 (context refactor), hooks become easier to test in isolation:
+After Phase 1/2 (context refactor), hooks become easier to test in isolation:
 - `use_channels`: dispatches SetChannels after auth completes
 - `use_chat_scroll`: auto-scroll when at bottom, preserve position when scrolled up
 - `use_auth_check`: redirects on 401, stays on 200
@@ -104,18 +104,18 @@ Add tests for edge cases not currently covered:
 
 ## Implementation Steps
 
-1. Write `ws_logic_tests.rs` — depends on Phase 2 function extraction
+1. Write `ws_logic_tests.rs` — depends on Phase 3 function extraction
 2. Write `archiver_tests.rs` — requires mock NATS setup helper
 3. Write `nats_consumer_tests.rs` — can share mock NATS helper
 4. Write `state_tests.rs` — straightforward after DashMap migration
 5. Extend `frontend/tests/logic_tests.rs` — independent of other phases
 6. Write `frontend/tests/websocket_service_tests.rs` — requires WebSocket mock
-7. Write `frontend/tests/hooks_tests.rs` — depends on Phase 1 context refactor
+7. Write `frontend/tests/hooks_tests.rs` — depends on Phase 1/2 context refactor
 
 ## Dependencies
 
-- **Phase 2** must complete before `ws_logic_tests.rs` (needs extracted pure functions)
-- **Phase 1** must complete before `hooks_tests.rs` (needs context-based state)
+- **Phase 3** must complete before `ws_logic_tests.rs` (needs extracted pure functions)
+- **Phase 1/2** must complete before `hooks_tests.rs` (needs context-based state)
 - `logic_tests.rs` extensions and `archiver_tests.rs` can start independently
 
 ## Test Quality Rules (from AGENTS.md)

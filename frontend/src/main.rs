@@ -19,7 +19,11 @@ use frontend::Route;
 use frontend::hooks::{use_auth_check, use_chat_websocket, use_channels};
 use frontend::state::{ChatStateContext, ChatStateProvider};
 
-async fn fetch_historical_messages(channel_id: Uuid, limit: i64, before: Option<chrono::DateTime<Utc>>) -> Result<Vec<frontend::types::ChatMessage>, String> {
+async fn fetch_historical_messages(
+    channel_id: Uuid, 
+    limit: i64, 
+    before: Option<chrono::DateTime<Utc>>
+) -> Result<Vec<frontend::types::ChatMessage>, String> {
     let mut url = format!("/api/channels/{}/messages?limit={}", channel_id, limit);
     if let Some(ts) = before {
         let ts_str = ts.to_rfc3339().replace(':', "%3A").replace('+', "%2B");

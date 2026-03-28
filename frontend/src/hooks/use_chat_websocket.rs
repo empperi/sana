@@ -26,7 +26,12 @@ pub fn use_chat_websocket(
                 let on_connected = create_on_connected_callback(dispatch.clone());
                 let on_status_change = create_on_status_change_callback(dispatch.clone(), ws_service_ref.clone());
 
-                let service = Rc::new(WebSocketService::connect(on_message, on_system_message, on_connected, on_status_change));
+                let service = Rc::new(WebSocketService::connect(
+                    on_message, 
+                    on_system_message, 
+                    on_connected, 
+                    on_status_change
+                ));
                 *ws_service_ref.borrow_mut() = Some(service);
             }
             
@@ -42,14 +47,16 @@ pub fn use_chat_websocket(
     {
         let dispatch = ctx.dispatch.clone();
         let ws_service_ref = ws_service.clone();
+        let ctx = ctx.clone();
         let channels = ctx.state.channels.clone();
         let status = ctx.state.connection_status;
-        let subscribed_channels = ctx.state.subscribed_channels.clone();
-        let messages = ctx.state.messages.clone();
 
         use_effect_with((channels, status), move |(channels, status)| {
             if *status == ConnectionStatus::Connected {
                 if let Some(service) = &*ws_service_ref.borrow() {
+                    let subscribed_channels = &ctx.state.subscribed_channels;
+                    let messages = &ctx.state.messages;
+
                     for channel in channels {
                         if !subscribed_channels.contains(channel) {
                             let last_seq = messages.get(channel).and_then(|e| e.iter().rev().find_map(|entry| {

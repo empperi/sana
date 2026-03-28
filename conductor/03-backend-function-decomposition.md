@@ -1,4 +1,4 @@
-# Phase 2: Backend Function Decomposition
+# Phase 3: Backend Function Decomposition
 
 ## Objective
 Break up oversized functions, remove nested control flow, and replace contended locks with
@@ -7,7 +7,7 @@ appropriate concurrent data structures. This phase targets AGENTS.md violations:
 
 ## Key Files & Issues
 
-### 2a. `src/logic/ws_logic.rs` — Most critical
+### 3a. `src/logic/ws_logic.rs` — Most critical
 
 **`handle_subscribe()` (lines 88-138, 51 lines)**
 
@@ -61,7 +61,7 @@ pub struct WsContext<'a> {
 }
 ```
 
-### 2b. `src/logic/archiver.rs` — Multiple long functions
+### 3b. `src/logic/archiver.rs` — Multiple long functions
 
 Functions in the 30-40 line range handling JetStream consumption and persistence.
 Key extractions:
@@ -69,7 +69,7 @@ Key extractions:
 - Consumer setup logic (lines 21-33) should be its own function
 - Message processing loop body should be extracted into `process_single_message()`
 
-### 2c. `src/messages.rs` — `MessageStore::add_entry()`
+### 3c. `src/messages.rs` — `MessageStore::add_entry()`
 
 `add_entry()` (lines 73-103, 31 lines) with nested match for idempotency:
 
@@ -84,7 +84,7 @@ add_entry()
 The O(n) linear search for idempotency (line 85-93) should be noted as a future optimization
 target (HashSet for dedup), but is acceptable at current scale.
 
-### 2d. `src/state.rs` — Lock contention
+### 3d. `src/state.rs` — Lock contention
 
 Replace:
 ```rust
@@ -103,7 +103,7 @@ channels are accessed concurrently. Add `dashmap` to `Cargo.toml` dependencies.
 
 Also update `load_channels_from_db()` which currently locks both mutexes sequentially.
 
-### 2e. Nested control flow cleanup
+### 3e. Nested control flow cleanup
 
 **`ws_logic.rs` channel ID resolution (lines 225-257):**
 ```rust

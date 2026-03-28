@@ -1,4 +1,4 @@
-# Phase 4: Error Handling & Resilience
+# Phase 5: Error Handling & Resilience
 
 ## Objective
 Remove panic-on-failure paths, add timeouts to blocking operations, and improve resilience
@@ -6,7 +6,7 @@ of the system under degraded conditions (NATS down, DB slow, high message volume
 
 ## Issues & Fixes
 
-### 4a. Startup panics in `src/main.rs`
+### 5a. Startup panics in `src/main.rs`
 
 **Problem:** Lines 30, 43, 68 use `unwrap()` and `expect()` on NATS connection, stream creation,
 and transaction begin. If any infrastructure is unavailable at startup, the process panics with
@@ -23,7 +23,7 @@ let nats_client = async_nats::connect(&config.nats_url)
 Add `anyhow` to dependencies for `context()` in `main()` only. Library code should continue
 using typed errors.
 
-### 4b. Authentication session validation — no caching
+### 5b. Authentication session validation — no caching
 
 **Problem:** `src/auth.rs` line 37 opens a database transaction on every single HTTP request to
 validate the session cookie. At scale, this is a significant DB load.
@@ -36,7 +36,7 @@ validate the session cookie. At scale, this is a significant DB load.
 
 This avoids adding Redis as a dependency while still reducing DB pressure significantly.
 
-### 4c. Missing channel membership check on message fetch
+### 5c. Missing channel membership check on message fetch
 
 **Problem:** `src/channels.rs` line 158 `get_channel_messages()` does not verify the requesting
 user is a member of the channel. Any authenticated user can read any channel's messages.
@@ -51,7 +51,7 @@ if !is_member {
 
 Add `is_channel_member()` to `src/db/channels.rs`. This is a simple `SELECT EXISTS` query.
 
-### 4d. WebSocket reconnection — unbounded retries
+### 5d. WebSocket reconnection — unbounded retries
 
 **Problem:** `frontend/src/services/websocket.rs` lines 62-104 loop forever with 2-second
 backoff. If the server is permanently down, the client retries indefinitely, consuming
@@ -62,7 +62,7 @@ resources.
 - After N total attempts (e.g., 20), stop retrying and show "connection lost" in UI
 - Allow manual reconnect via user action
 
-### 4e. NATS publish errors silently ignored
+### 5e. NATS publish errors silently ignored
 
 **Problem:** Several places publish to NATS without checking the result:
 - `src/channels.rs` line 86-88: channel creation event
@@ -72,7 +72,7 @@ resources.
 **Fix:** Log warnings on publish failures. For chat messages, return an error to the client
 via STOMP ERROR frame so the frontend can show "message not sent" and retry.
 
-### 4f. In-memory message store — unbounded growth
+### 5f. In-memory message store — unbounded growth
 
 **Problem:** `src/messages.rs` MessageStore trims to 100 entries per channel, but if the
 archiver falls behind or fails, messages accumulate across many channels without a global
@@ -82,7 +82,7 @@ memory limit.
 exceeded, evict oldest entries from the largest channel. Log a warning when eviction occurs
 so operators know the archiver may be behind.
 
-### 4g. `logic/nats.rs` — unwrap on stream lookup
+### 5g. `logic/nats.rs` — unwrap on stream lookup
 
 **Problem:** Line 9 calls `jetstream.get_stream("SANA").await.unwrap()`. If the stream doesn't
 exist at startup, the consumer task panics.
@@ -90,7 +90,7 @@ exist at startup, the consumer task panics.
 **Fix:** Use retry loop or propagate error gracefully. The stream should be created in `main.rs`
 before spawning the consumer, but defensive coding should handle the race.
 
-### 4h. Frontend async tasks — no error handling
+### 5h. Frontend async tasks — no error handling
 
 **Problem:** Multiple places in frontend components spawn async tasks without catching errors:
 - `components/profile_menu.rs` line 53: logout ignores server failure

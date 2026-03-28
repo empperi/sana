@@ -1,4 +1,4 @@
-# Phase 5: Infrastructure Hardening
+# Phase 6: Infrastructure Hardening
 
 ## Objective
 Improve the Docker and nginx configuration for production readiness. These are lower priority
@@ -6,7 +6,7 @@ than code changes but important before any real deployment.
 
 ## Issues & Fixes
 
-### 5a. PostgreSQL data persistence
+### 6a. PostgreSQL data persistence
 
 **Problem:** `docker-compose.yml` does not define a persistent volume for the `db` service.
 On `docker-compose down`, all data is lost.
@@ -21,7 +21,7 @@ volumes:
   pgdata:
 ```
 
-### 5b. Nginx — no gzip compression
+### 6b. Nginx — no gzip compression
 
 **Problem:** `nginx.conf` serves all responses uncompressed. WASM binaries and JSON payloads
 benefit significantly from compression.
@@ -33,7 +33,7 @@ gzip_types text/plain text/css application/json application/javascript applicati
 gzip_min_length 1000;
 ```
 
-### 5c. Nginx — no cache headers for static assets
+### 6c. Nginx — no cache headers for static assets
 
 **Problem:** Frontend dist files (JS, WASM, CSS) are served without `Cache-Control` headers.
 Browsers re-fetch on every page load.
@@ -46,7 +46,7 @@ location ~* \.(js|wasm|css|png|svg|ico)$ {
 }
 ```
 
-### 5d. CORS hardcoded to localhost
+### 6d. CORS hardcoded to localhost
 
 **Problem:** `src/router.rs` line 13 hardcodes CORS origin to `localhost:8080`. This breaks
 any non-local deployment.
@@ -57,7 +57,7 @@ let cors_origin = config.get_value("cors_origin")
     .unwrap_or_else(|| "http://localhost:8080".to_string());
 ```
 
-### 5e. No resource limits in Docker Compose
+### 6e. No resource limits in Docker Compose
 
 **Problem:** No memory or CPU limits on any service. A memory leak or runaway process can
 consume all host resources.
@@ -85,7 +85,7 @@ db:
         memory: 512M
 ```
 
-### 5f. COOKIE_KEY hardcoded in docker-compose.yml
+### 6f. COOKIE_KEY hardcoded in docker-compose.yml
 
 **Problem:** The cookie signing key is committed in plaintext in `docker-compose.yml`.
 
@@ -97,7 +97,7 @@ environment:
 
 And document that `.env` must contain a `COOKIE_KEY` value for the Docker stack.
 
-### 5g. No health checks for app service
+### 6g. No health checks for app service
 
 **Problem:** Docker Compose has a health check for `db` but not for the `app` service.
 The load balancer may route to an app instance that hasn't finished starting.

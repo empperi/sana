@@ -9,6 +9,22 @@ use web_sys::RequestCredentials;
 use std::rc::Rc;
 use std::cell::RefCell;
 
+fn finalize_channel_join(
+    channel: Channel,
+    dispatch: &Callback<ChatAction>,
+    ws_service: &Rc<RefCell<Option<Rc<WebSocketService>>>>,
+    on_success: &Callback<String>,
+) {
+    dispatch.emit(ChatAction::JoinChannel(channel.clone()));
+
+    if let Some(service) = &*ws_service.borrow() {
+        service.send(stomp::create_subscribe_frame(&channel.name, None, None));
+        dispatch.emit(ChatAction::AddSubscribedChannel(channel.name.clone()));
+    }
+
+    on_success.emit(channel.name);
+}
+
 pub async fn create_channel(
     name: String, 
     dispatch: Callback<ChatAction>, 
@@ -19,25 +35,31 @@ pub async fn create_channel(
         "name": name
     });
 
-    let resp = Request::post("/api/channels")
+    let resp = match Request::post("/api/channels")
         .credentials(RequestCredentials::Include)
         .json(&payload)
         .unwrap()
         .send()
-        .await;
+        .await 
+    {
+        Ok(r) => r,
+        Err(e) => {
+            gloo_console::error!(format!("Network error creating channel: {}", e));
+            return;
+        }
+    };
 
-    if let Ok(r) = resp {
-        if r.status() == 201 {
-            if let Ok(channel) = r.json::<Channel>().await {
-                dispatch.emit(ChatAction::JoinChannel(channel.clone()));
-                
-                if let Some(service) = &*ws_service.borrow() {
-                    service.send(stomp::create_subscribe_frame(&channel.name, None, None));
-                    dispatch.emit(ChatAction::AddSubscribedChannel(channel.name.clone()));
-                }
+    if resp.status() != 201 {
+        gloo_console::error!(format!("Failed to create channel: server returned {}", resp.status()));
+        return;
+    }
 
-                on_success.emit(channel.name);
-            }
+    match resp.json::<Channel>().await {
+        Ok(channel) => {
+            finalize_channel_join(channel, &dispatch, &ws_service, &on_success);
+        },
+        Err(e) => {
+            gloo_console::error!(format!("Failed to parse created channel: {}", e));
         }
     }
 }
@@ -52,25 +74,26 @@ pub async fn join_channel(
         "channel_id": channel.id
     });
 
-    let resp = Request::post("/api/channels/join")
+    let resp = match Request::post("/api/channels/join")
         .credentials(RequestCredentials::Include)
         .json(&payload)
         .unwrap()
         .send()
-        .await;
-
-    if let Ok(r) = resp {
-        if r.status() == 200 {
-            dispatch.emit(ChatAction::JoinChannel(channel.clone()));
-            
-            if let Some(service) = &*ws_service.borrow() {
-                service.send(stomp::create_subscribe_frame(&channel.name, None, None));
-                dispatch.emit(ChatAction::AddSubscribedChannel(channel.name.clone()));
-            }
-
-            on_success.emit(channel.name);
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            gloo_console::error!(format!("Network error joining channel: {}", e));
+            return;
         }
+    };
+
+    if resp.status() != 200 {
+        gloo_console::error!(format!("Failed to join channel: server returned {}", resp.status()));
+        return;
     }
+
+    finalize_channel_join(channel, &dispatch, &ws_service, &on_success);
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -89,7 +112,7 @@ pub struct ChatState {
     pub connection_status: ConnectionStatus,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum ChatAction {
     HandleMessage { channel: String, entry: ChannelEntry },
     PrependHistory { channel: String, history: Vec<ChannelEntry> },
@@ -314,9 +337,10 @@ impl ChatState {
         self.channel_id_map = channels.into_iter().map(|c| (c.name, c.id)).collect();
         
         // Ensure "General" is always present if for some reason it's missing from API
-        if !self.channels.contains(&"General".to_string()) {
+        if !self.channels.iter().any(|c| c == "General") {
             self.channels.insert(0, "General".to_string());
-            self.channel_id_map.insert("General".to_string(), Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap());
+            let gen_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+            self.channel_id_map.insert("General".to_string(), gen_id);
         }
     }
 
