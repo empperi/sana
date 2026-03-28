@@ -1,6 +1,6 @@
 use frontend::state::*;
 use frontend::logic::ChatState;
-use frontend::types::{Channel, ChannelEntry, ChatMessage, MessageType};
+use frontend::types::Channel;
 use uuid::Uuid;
 use chrono::Utc;
 use std::rc::Rc;
