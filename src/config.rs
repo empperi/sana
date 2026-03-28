@@ -8,6 +8,12 @@ pub struct Config {
     pub database_url: String,
 }
 
+impl Default for Config {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Config {
     /// Creates a new Config by loading from defaults, then an optional config file, then environment variables.
     pub fn new() -> Self {

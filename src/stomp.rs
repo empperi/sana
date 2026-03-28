@@ -20,7 +20,7 @@ pub fn parse(text: &str) -> StompCommand {
 
     match command_line {
         "CONNECT" | "STOMP" => {
-            while let Some(line) = lines.next() {
+            for line in lines.by_ref() {
                 if line.is_empty() { break; }
             }
             StompCommand::Connect
@@ -31,7 +31,7 @@ pub fn parse(text: &str) -> StompCommand {
             let mut last_seen_seq = None;
             let mut headers = Vec::new();
             let lines_iter = lines.by_ref();
-            while let Some(line) = lines_iter.next() {
+            for line in lines_iter.by_ref() {
                 if line.is_empty() { break; }
                 if let Some((key, value)) = line.split_once(':') {
                     let k = key.trim();
@@ -61,7 +61,7 @@ pub fn parse(text: &str) -> StompCommand {
             let mut headers = Vec::new();
             let lines_iter = lines.by_ref();
 
-            while let Some(line) = lines_iter.next() {
+            for line in lines_iter.by_ref() {
                 if line.is_empty() {
                     break;
                 }

@@ -130,7 +130,7 @@ pub async fn handle_subscribe(channel_name: String, last_seen_seq: Option<u64>, 
                 ChannelEntry::Message(m) => m.seq,
                 _ => None,
             };
-            seq.map_or(true, |s| s > last_db_seq) && should_send(seq, last_seen_seq)
+            seq.is_none_or(|s| s > last_db_seq) && should_send(seq, last_seen_seq)
         })
         .collect();
 

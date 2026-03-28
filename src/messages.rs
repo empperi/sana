@@ -78,13 +78,21 @@ impl MessageStore {
             messages: DashMap::new(),
         }
     }
+}
 
+impl Default for MessageStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl MessageStore {
     pub fn add_entry(&self, channel: &str, entry: ChannelEntry) {
         let Some(id) = entry.get_id() else {
             return;
         };
 
-        let mut channel_entries = self.messages.entry(channel.to_string()).or_insert_with(Vec::new);
+        let mut channel_entries = self.messages.entry(channel.to_string()).or_default();
 
         // Idempotency check for entries with IDs
         if channel_entries.iter().any(|e| e.get_id() == Some(id)) {
