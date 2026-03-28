@@ -17,7 +17,7 @@
 - [x] Task: Refactor `MessageStore::add_entry()` in `messages.rs`
 - [x] Task: Conductor - User Manual Verification 'Utility & Idempotency Refactoring' (Protocol in workflow.md)
 
-## Phase 4: Validation
+## Phase 4: Validation [checkpoint: 4db917a]
 - [x] Task: Run `cargo check` and `cargo clippy` — fix all warnings
 - [x] Task: Run `cargo test` — ensure no regressions
 - [x] Task: Conductor - User Manual Verification 'Validation' (Protocol in workflow.md)
