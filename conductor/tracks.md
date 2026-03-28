@@ -4,7 +4,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Testing Gaps**
+- [~] **Track: Testing Gaps**
   *Link: [./tracks/testing_gaps_20260328/](./tracks/testing_gaps_20260328/)*
 
 ---
