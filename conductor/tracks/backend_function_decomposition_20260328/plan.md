@@ -12,7 +12,7 @@
 - [x] Task: Introduce `WsContext` struct and refactor `decide()` signature
 - [x] Task: Conductor - User Manual Verification 'Core Logic Refactoring' (Protocol in workflow.md)
 
-## Phase 3: Utility & Idempotency Refactoring
+## Phase 3: Utility & Idempotency Refactoring [checkpoint: 49a118d]
 - [x] Task: Refactor `archiver.rs` (extract message loop body, move FK check to DB layer)
 - [x] Task: Refactor `MessageStore::add_entry()` in `messages.rs`
 - [x] Task: Conductor - User Manual Verification 'Utility & Idempotency Refactoring' (Protocol in workflow.md)
