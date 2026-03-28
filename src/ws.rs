@@ -8,7 +8,7 @@ use futures::sink::SinkExt;
 use futures::stream::StreamExt;
 use crate::state::AppState;
 use crate::stomp;
-use crate::logic::ws_logic::{self, WsAction};
+use crate::logic::ws_logic::{self, WsAction, WsContext};
 use crate::db::users;
 use uuid::Uuid;
 
@@ -49,6 +49,11 @@ async fn handle_socket(socket: WebSocket, state: AppState, user_id: Uuid, userna
     let (mut sender, mut receiver) = socket.split();
     let (tx_internal, mut rx_internal) = tokio::sync::mpsc::channel::<String>(100);
 
+    let ctx = WsContext {
+        user_id,
+        username: username.clone(),
+    };
+
     let send_task = tokio::spawn(async move {
         while let Some(msg) = rx_internal.recv().await {
              if sender.send(Message::Text(msg)).await.is_err() {
@@ -64,7 +69,7 @@ async fn handle_socket(socket: WebSocket, state: AppState, user_id: Uuid, userna
             match msg {
                 Message::Text(text) => {
                     let command = stomp::parse(&text);
-                    let actions = ws_logic::decide(command, user_id, &username);
+                    let actions = ws_logic::decide(command, &ctx);
 
                     for action in actions {
                         match action {
@@ -79,7 +84,7 @@ async fn handle_socket(socket: WebSocket, state: AppState, user_id: Uuid, userna
                                 }
                             }
                             WsAction::PublishToNats(subject, body, message_id, channel_name) => {
-                                 ws_logic::process_and_publish_message(subject, body, message_id, user_id, &username, &channel_name, &state).await;
+                                 ws_logic::process_and_publish_message(subject, body, message_id, ctx.user_id, &ctx.username, &channel_name, &state).await;
                             }
                             WsAction::PublishReadMarker(channel_name, message_id) => {
                                 ws_logic::publish_read_marker(&channel_name, user_id, message_id, &state).await;

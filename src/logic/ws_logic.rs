@@ -14,11 +14,16 @@ pub enum WsAction {
     None,
 }
 
-pub fn decide(command: StompCommand, user_id: Uuid, username: &str) -> Vec<WsAction> {
+pub struct WsContext {
+    pub user_id: Uuid,
+    pub username: String,
+}
+
+pub fn decide(command: StompCommand, ctx: &WsContext) -> Vec<WsAction> {
     let mut actions = Vec::new();
     match command {
         StompCommand::Connect => {
-            let response = format!("CONNECTED\nversion:1.2\nuser_id:{}\nusername:{}\n\n\0", user_id, username);
+            let response = format!("CONNECTED\nversion:1.2\nuser_id:{}\nusername:{}\n\n\0", ctx.user_id, ctx.username);
             actions.push(WsAction::SendToClient(response));
         },
         StompCommand::Subscribe { destination, headers, last_seen_seq, .. } => {
@@ -89,7 +94,7 @@ pub async fn handle_subscribe(channel_name: String, last_seen_seq: Option<u64>, 
     let live_rx = tx.subscribe();
 
     // 4. Collect history
-    let mut combined_history = Vec::new();
+    let mut db_history = Vec::new();
     let mut last_db_seq = 0;
 
     if let Some(cid) = channel_id {
@@ -101,7 +106,7 @@ pub async fn handle_subscribe(channel_name: String, last_seen_seq: Option<u64>, 
                     if should_send(seq, last_seen_seq) {
                         match msg.msg_type {
                             crate::messages::MessageType::Join => {
-                                combined_history.push(ChannelEntry::UserJoined {
+                                db_history.push(ChannelEntry::UserJoined {
                                     id: msg.id,
                                     user_id: msg.user_id,
                                     username: msg.user.clone(),
@@ -109,7 +114,7 @@ pub async fn handle_subscribe(channel_name: String, last_seen_seq: Option<u64>, 
                                 });
                             }
                             crate::messages::MessageType::Chat => {
-                                combined_history.push(ChannelEntry::Message(msg));
+                                db_history.push(ChannelEntry::Message(msg));
                             }
                         }
                     }
@@ -118,24 +123,53 @@ pub async fn handle_subscribe(channel_name: String, last_seen_seq: Option<u64>, 
         }
     }
 
-    for entry in state.message_store.get_entries(&channel_name) {
-        let seq = match &entry {
-            ChannelEntry::Message(m) => m.seq,
-            _ => None,
-        };
-        if seq.map_or(true, |s| s > last_db_seq) && should_send(seq, last_seen_seq) {
-            combined_history.push(entry);
-        }
-    }
+    let mem_history: Vec<ChannelEntry> = state.message_store.get_entries(&channel_name)
+        .into_iter()
+        .filter(|entry| {
+            let seq = match &entry {
+                ChannelEntry::Message(m) => m.seq,
+                _ => None,
+            };
+            seq.map_or(true, |s| s > last_db_seq) && should_send(seq, last_seen_seq)
+        })
+        .collect();
+
+    let combined_history = merge_and_deduplicate(db_history, mem_history);
 
     // 5. Send history in batches of 20
-    for chunk in combined_history.chunks(20) {
-        let batch_entry = ChannelEntry::Batch(chunk.to_vec());
-        send_entry(&channel_name, batch_entry, tx_internal).await;
-    }
+    send_in_batches(&channel_name, combined_history, tx_internal).await;
 
     // 6. Start forwarding buffered and future live messages
     spawn_forwarding_task(channel_name, live_rx, tx_internal.clone());
+}
+
+pub fn merge_and_deduplicate(db_history: Vec<ChannelEntry>, mem_history: Vec<ChannelEntry>) -> Vec<ChannelEntry> {
+    let mut combined = db_history;
+    let mut existing_ids: std::collections::HashSet<Uuid> = combined.iter().map(|e| match e {
+        ChannelEntry::Message(m) => m.id,
+        ChannelEntry::UserJoined { id, .. } => *id,
+        _ => Uuid::nil(),
+    }).collect();
+
+    for entry in mem_history {
+        let id = match &entry {
+            ChannelEntry::Message(m) => m.id,
+            ChannelEntry::UserJoined { id, .. } => *id,
+            _ => Uuid::nil(),
+        };
+        if id != Uuid::nil() && !existing_ids.contains(&id) {
+            existing_ids.insert(id);
+            combined.push(entry);
+        }
+    }
+    combined
+}
+
+pub async fn send_in_batches(channel_name: &str, history: Vec<ChannelEntry>, tx: &tokio::sync::mpsc::Sender<String>) {
+    for chunk in history.chunks(20) {
+        let batch_entry = ChannelEntry::Batch(chunk.to_vec());
+        send_entry(channel_name, batch_entry, tx).await;
+    }
 }
 
 async fn handle_system_subscribe(state: &AppState, tx_internal: &tokio::sync::mpsc::Sender<String>) {
@@ -217,37 +251,51 @@ pub async fn process_and_publish_message(
 ) {
     let id = message_id.and_then(|sid| Uuid::parse_str(&sid).ok()).unwrap_or_else(Uuid::new_v4);
     
-    let channel_id = state.channel_ids.get(channel_name).map(|r| *r.value());
-
-    let channel_id = match channel_id {
+    let channel_id = match resolve_channel_id(channel_name, state).await {
         Some(id) => id,
-        None => {
-            // Try to look up in DB
-            let mut tx = match state.db_pool.begin().await {
-                Ok(tx) => tx,
-                Err(e) => {
-                    tracing::error!("Failed to start transaction for channel lookup: {}", e);
-                    return;
-                }
-            };
-            match crate::db::channels::get_channel_by_name(&mut tx, channel_name).await {
-                Ok(Some(c)) => {
-                    state.channel_ids.insert(channel_name.to_string(), c.id);
-                    c.id
-                },
-                Ok(None) => {
-                    tracing::warn!("Attempted to send message to non-existent channel: {}", channel_name);
-                    return;
-                },
-                Err(e) => {
-                    tracing::error!("Failed to look up channel by name: {}", e);
-                    return;
-                }
-            }
+        None => return,
+    };
+
+    let chat_msg = build_chat_message(id, channel_id, user_id, username, body);
+    let entry = ChannelEntry::Message(chat_msg);
+
+    if let Ok(json_body) = serde_json::to_string(&entry) {
+        publish_to_nats(subject, json_body, state).await;
+    }
+}
+
+pub async fn resolve_channel_id(channel_name: &str, state: &AppState) -> Option<Uuid> {
+    if let Some(id) = state.channel_ids.get(channel_name).map(|r| *r.value()) {
+        return Some(id);
+    }
+
+    // Try to look up in DB
+    let mut tx = match state.db_pool.begin().await {
+        Ok(tx) => tx,
+        Err(e) => {
+            tracing::error!("Failed to start transaction for channel lookup: {}", e);
+            return None;
         }
     };
 
-    let chat_msg = ChatMessage {
+    match crate::db::channels::get_channel_by_name(&mut tx, channel_name).await {
+        Ok(Some(c)) => {
+            state.channel_ids.insert(channel_name.to_string(), c.id);
+            Some(c.id)
+        },
+        Ok(None) => {
+            tracing::warn!("Attempted to resolve non-existent channel: {}", channel_name);
+            None
+        },
+        Err(e) => {
+            tracing::error!("Failed to look up channel by name: {}", e);
+            None
+        }
+    }
+}
+
+pub fn build_chat_message(id: Uuid, channel_id: Uuid, user_id: Uuid, username: &str, body: String) -> ChatMessage {
+    ChatMessage {
         id,
         channel_id,
         user_id,
@@ -256,12 +304,6 @@ pub async fn process_and_publish_message(
         message: body,
         seq: None,
         msg_type: crate::messages::MessageType::Chat,
-    };
-
-    let entry = ChannelEntry::Message(chat_msg);
-
-    if let Ok(json_body) = serde_json::to_string(&entry) {
-        publish_to_nats(subject, json_body, state).await;
     }
 }
 
