@@ -103,40 +103,55 @@ async fn handle_message(message: async_nats::jetstream::message::Message, state:
     };
     let sequence = info.stream_sequence;
 
-    if channel_name == "system.channels" {
-        handle_system_channel_message(&payload, message, state).await;
+    let result = if channel_name == "system.channels" {
+        handle_system_channel_message(&payload, state).await
     } else {
-        handle_chat_entry_message(&channel_name, &payload, sequence, message, state).await;
-    }
-}
+        handle_chat_entry_message(&channel_name, &payload, sequence, state).await
+    };
 
-async fn handle_system_channel_message(payload: &str, message: async_nats::jetstream::message::Message, state: &AppState) {
-    if let Ok(channel) = serde_json::from_str::<crate::db::channels::Channel>(payload) {
-        archive_channel(channel, message, state).await;
-    } else {
-        tracing::warn!("Archiver: Failed to parse channel, acking and skipping: {}", payload);
-        let _ = message.ack().await;
-    }
-}
-
-async fn handle_chat_entry_message(channel_name: &str, payload: &str, sequence: u64, message: async_nats::jetstream::message::Message, state: &AppState) {
-    match serde_json::from_str::<crate::messages::ChannelEntry>(payload) {
-        Ok(crate::messages::ChannelEntry::Message(chat_msg)) => {
-            archive_chat_message(sequence, chat_msg, message, state).await;
-        },
-        Ok(crate::messages::ChannelEntry::UserJoined { id, user_id, username, timestamp }) => {
-            archive_join_event(channel_name, sequence, id, user_id, username, timestamp, message, state).await;
-        },
-        Ok(crate::messages::ChannelEntry::ReadMarker { user_id, message_id }) => {
-            archive_read_marker(channel_name, user_id, message_id, message, state).await;
-        }
+    match result {
         Ok(_) => {
             let _ = message.ack().await;
-        },
+        }
         Err(e) => {
-            tracing::warn!("Archiver: Failed to parse entry as ChannelEntry: {}. Error: {}", payload, e);
+            tracing::error!("Archiver: Permanent failure processing message {}: {}. Acking to avoid poison message.", sequence, e);
             let _ = message.ack().await;
         }
+    }
+}
+
+async fn handle_system_channel_message(payload: &str, state: &AppState) -> Result<(), String> {
+    let channel = serde_json::from_str::<crate::db::channels::Channel>(payload)
+        .map_err(|e| format!("Failed to parse channel: {}", e))?;
+    
+    let mut tx = state.db_pool.begin().await
+        .map_err(|e| format!("Failed to start transaction: {}", e))?;
+
+    crate::db::channels::insert_channel(&mut tx, &channel).await
+        .map_err(|e| format!("Failed to insert channel into DB: {}", e))?;
+
+    tx.commit().await
+        .map_err(|e| format!("Failed to commit channel transaction: {}", e))?;
+
+    tracing::debug!("Archiver: Successfully archived channel {}", channel.name);
+    Ok(())
+}
+
+async fn handle_chat_entry_message(channel_name: &str, payload: &str, sequence: u64, state: &AppState) -> Result<(), String> {
+    let entry = serde_json::from_str::<crate::messages::ChannelEntry>(payload)
+        .map_err(|e| format!("Failed to parse ChannelEntry: {}", e))?;
+
+    match entry {
+        crate::messages::ChannelEntry::Message(chat_msg) => {
+            archive_chat_message(sequence, chat_msg, state).await
+        },
+        crate::messages::ChannelEntry::UserJoined { id, user_id, username, timestamp } => {
+            archive_join_event(channel_name, sequence, id, user_id, username, timestamp, state).await
+        },
+        crate::messages::ChannelEntry::ReadMarker { user_id, message_id } => {
+            archive_read_marker(channel_name, user_id, message_id, state).await
+        }
+        _ => Ok(()),
     }
 }
 
@@ -147,153 +162,69 @@ async fn archive_join_event(
     user_id: Uuid,
     username: String,
     timestamp: chrono::DateTime<chrono::Utc>,
-    message: async_nats::jetstream::message::Message,
     state: &AppState
-) {
-    let result = async {
-        let mut tx = state.db_pool.begin().await?;
-        
-        let channel_id = sqlx::query_scalar::<_, Uuid>("SELECT id FROM channels WHERE name = $1")
-            .bind(channel_name)
-            .fetch_one(&mut *tx)
-            .await?;
+) -> Result<(), String> {
+    let mut tx = state.db_pool.begin().await
+        .map_err(|e| format!("Failed to start transaction: {}", e))?;
+    
+    let channel_id = sqlx::query_scalar::<_, Uuid>("SELECT id FROM channels WHERE name = $1")
+        .bind(channel_name)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|e| format!("Failed to resolve channel ID: {}", e))?;
 
-        let chat_msg = ChatMessage {
-            id,
-            channel_id,
-            user_id,
-            user: username.clone(),
-            timestamp,
-            message: format!("{} joined", username),
-            seq: Some(sequence),
-            msg_type: crate::messages::MessageType::Join,
-        };
-
-        crate::db::messages::insert_message(&mut tx, sequence, &chat_msg).await?;
-        tx.commit().await?;
-        Ok::<(), sqlx::Error>(())
-    }.await;
-
-    match result {
-        Ok(_) => {
-            let _ = message.ack().await;
-        }
-        Err(e) => {
-            if is_foreign_key_violation(&e) {
-                tracing::warn!("Archiver: Skipping join event for channel '{}' due to missing foreign key: {}", channel_name, e);
-                let _ = message.ack().await;
-            } else {
-                tracing::error!("Archiver: Failed to archive join event: {}", e);
-            }
-        }
-    }
-}
-
-async fn archive_channel(
-    channel: crate::db::channels::Channel, 
-    message: async_nats::jetstream::message::Message,
-    state: &AppState
-) {
-    let mut tx = match state.db_pool.begin().await {
-        Ok(tx) => tx,
-        Err(e) => {
-            tracing::error!("Archiver: Failed to start transaction for channel: {}", e);
-            return; 
-        }
+    let chat_msg = ChatMessage {
+        id,
+        channel_id,
+        user_id,
+        user: username.clone(),
+        timestamp,
+        message: format!("{} joined", username),
+        seq: Some(sequence),
+        msg_type: crate::messages::MessageType::Join,
     };
 
-    match crate::db::channels::insert_channel(&mut tx, &channel).await {
-        Ok(_) => {
-            if let Err(e) = tx.commit().await {
-                tracing::error!("Archiver: Failed to commit channel transaction: {}", e);
-            } else {
-                let _ = message.ack().await;
-                tracing::debug!("Archiver: Successfully archived channel {}", channel.name);
-            }
-        },
-        Err(e) => {
-            tracing::error!("Archiver: Failed to insert channel into DB: {}", e);
-            let _ = tx.rollback().await;
-        }
-    }
+    crate::db::messages::insert_message_with_fk_check(&mut tx, sequence, &chat_msg).await
+        .map_err(|e| format!("Failed to archive join event: {}", e))?;
+
+    tx.commit().await
+        .map_err(|e| format!("Failed to commit join event transaction: {}", e))?;
+
+    Ok(())
 }
 
 async fn archive_chat_message(
     sequence: u64, 
     chat_msg: ChatMessage, 
-    message: async_nats::jetstream::message::Message,
     state: &AppState
-) {
-    let mut tx = match state.db_pool.begin().await {
-        Ok(tx) => tx,
-        Err(e) => {
-            tracing::error!("Archiver: Failed to start transaction: {}", e);
-            return; // Do not ack, will be redelivered
-        }
-    };
+) -> Result<(), String> {
+    let mut tx = state.db_pool.begin().await
+        .map_err(|e| format!("Failed to start transaction: {}", e))?;
 
-    match crate::db::messages::insert_message(&mut tx, sequence, &chat_msg).await {
-        Ok(_) => {
-            if let Err(e) = tx.commit().await {
-                tracing::error!("Archiver: Failed to commit transaction: {}", e);
-            } else {
-                if let Err(e) = message.ack().await {
-                    tracing::error!("Archiver: Failed to ack message {}: {}", sequence, e);
-                } else {
-                    tracing::debug!("Archiver: Successfully archived message {} on channel {}", sequence, chat_msg.channel_id);
-                }
-            }
-        },
-        Err(e) => {
-            if is_foreign_key_violation(&e) {
-                tracing::warn!("Archiver: Skipping orphan message {} due to missing foreign key (likely from previous session): {}", sequence, e);
-                let _ = message.ack().await;
-            } else {
-                tracing::error!("Archiver: Failed to insert message into DB: {}", e);
-                let _ = tx.rollback().await;
-            }
-        }
-    }
+    crate::db::messages::insert_message_with_fk_check(&mut tx, sequence, &chat_msg).await
+        .map_err(|e| format!("Failed to insert message: {}", e))?;
+
+    tx.commit().await
+        .map_err(|e| format!("Failed to commit transaction: {}", e))?;
+
+    tracing::debug!("Archiver: Successfully archived message {} on channel {}", sequence, chat_msg.channel_id);
+    Ok(())
 }
 
 async fn archive_read_marker(
     channel_name: &str,
     user_id: Uuid,
     message_id: Uuid,
-    message: async_nats::jetstream::message::Message,
     state: &AppState
-) {
-    let result = async {
-        let mut tx = state.db_pool.begin().await?;
-        crate::db::messages::update_last_message_read_by_name(&mut tx, channel_name, user_id, message_id).await?;
-        tx.commit().await?;
-        Ok::<(), sqlx::Error>(())
-    }.await;
+) -> Result<(), String> {
+    let mut tx = state.db_pool.begin().await
+        .map_err(|e| format!("Failed to start transaction: {}", e))?;
 
-    match result {
-        Ok(_) => {
-            let _ = message.ack().await;
-        }
-        Err(e) => {
-            if is_foreign_key_violation(&e) {
-                // DO NOT ACK read markers on FK violation if they are recent?
-                // Actually, if it's an orphan marker for a non-existent channel name, we should ack.
-                // But here we know the channel name because it came from the subject.
-                
-                // Let's check if the message ID exists.
-                tracing::warn!("Archiver: Read marker FK violation for channel '{}'. Retrying later.", channel_name);
-                // Do not ack, NATS will redeliver.
-            } else {
-                tracing::error!("Archiver: Failed to update read marker in DB: {}", e);
-            }
-        }
-    }
-}
+    crate::db::messages::update_last_message_read_by_name(&mut tx, channel_name, user_id, message_id).await
+        .map_err(|e| format!("Failed to update read marker in DB: {}", e))?;
 
-fn is_foreign_key_violation(e: &sqlx::Error) -> bool {
-    if let Some(db_err) = e.as_database_error() {
-        // Postgres error code 23503 is foreign_key_violation
-        return db_err.code().map(|c| c == "23503").unwrap_or(false);
-    }
-    false
+    tx.commit().await
+        .map_err(|e| format!("Failed to commit read marker transaction: {}", e))?;
+
+    Ok(())
 }

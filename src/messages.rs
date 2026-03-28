@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use std::sync::{Mutex};
+use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
@@ -58,44 +57,41 @@ pub enum ChannelEntry {
     },
 }
 
+impl ChannelEntry {
+    pub fn get_id(&self) -> Option<Uuid> {
+        match self {
+            ChannelEntry::Message(m) => Some(m.id),
+            ChannelEntry::UserJoined { id, .. } => Some(*id),
+            _ => None,
+        }
+    }
+}
+
 pub struct MessageStore {
     // Map of channel_name -> List of entries
-    messages: Mutex<HashMap<String, Vec<ChannelEntry>>>,
+    messages: DashMap<String, Vec<ChannelEntry>>,
 }
 
 impl MessageStore {
     pub fn new() -> Self {
         Self {
-            messages: Mutex::new(HashMap::new()),
+            messages: DashMap::new(),
         }
     }
 
     pub fn add_entry(&self, channel: &str, entry: ChannelEntry) {
-        let mut store = self.messages.lock().unwrap();
-        let channel_entries = store.entry(channel.to_string()).or_insert_with(Vec::new);
-
-        let entry_id = match &entry {
-            ChannelEntry::Message(m) => Some(m.id),
-            ChannelEntry::UserJoined { id, .. } => Some(*id),
-            _ => None,
+        let Some(id) = entry.get_id() else {
+            return;
         };
 
-        if let Some(id) = entry_id {
-            // Idempotency check for entries with IDs
-            if !channel_entries.iter().any(|e| {
-                match e {
-                    ChannelEntry::Message(m) => m.id == id,
-                    ChannelEntry::UserJoined { id: eid, .. } => *eid == id,
-                    _ => false,
-                }
-            }) {
-                channel_entries.push(entry);
-            }
-        } else {
-            // For Metadata, Batch, ReadMarker - we don't store them in historical memory store
-            // but we might want to broadcast them (which is handled by nats.rs caller)
+        let mut channel_entries = self.messages.entry(channel.to_string()).or_insert_with(Vec::new);
+
+        // Idempotency check for entries with IDs
+        if channel_entries.iter().any(|e| e.get_id() == Some(id)) {
             return;
         }
+
+        channel_entries.push(entry);
 
         if channel_entries.len() > MAX_LIVE_HISTORY {
             channel_entries.remove(0);
@@ -103,24 +99,15 @@ impl MessageStore {
     }
 
     pub fn get_entries(&self, channel: &str) -> Vec<ChannelEntry> {
-        let store = self.messages.lock().unwrap();
-        store.get(channel).cloned().unwrap_or_default()
+        self.messages.get(channel).map(|r| r.value().clone()).unwrap_or_default()
     }
 
     pub fn get_entries_after(&self, channel: &str, last_id: Uuid) -> Vec<ChannelEntry> {
-        let store = self.messages.lock().unwrap();
-        if let Some(entries) = store.get(channel) {
-            if let Some(pos) = entries.iter().position(|e| {
-                let id = match e {
-                    ChannelEntry::Message(m) => m.id,
-                    ChannelEntry::UserJoined { id, .. } => *id,
-                    _ => Uuid::nil(),
-                };
-                id == last_id
-            }) {
+        if let Some(entries) = self.messages.get(channel) {
+            if let Some(pos) = entries.iter().position(|e| e.get_id() == Some(last_id)) {
                 return entries[pos + 1..].to_vec();
             }
-            return entries.clone();
+            return entries.value().clone();
         }
         Vec::new()
     }

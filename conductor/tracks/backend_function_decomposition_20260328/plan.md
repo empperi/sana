@@ -13,9 +13,9 @@
 - [x] Task: Conductor - User Manual Verification 'Core Logic Refactoring' (Protocol in workflow.md)
 
 ## Phase 3: Utility & Idempotency Refactoring
-- [ ] Task: Refactor `archiver.rs` (extract message loop body, move FK check to DB layer)
-- [ ] Task: Refactor `MessageStore::add_entry()` in `messages.rs`
-- [ ] Task: Conductor - User Manual Verification 'Utility & Idempotency Refactoring' (Protocol in workflow.md)
+- [x] Task: Refactor `archiver.rs` (extract message loop body, move FK check to DB layer)
+- [x] Task: Refactor `MessageStore::add_entry()` in `messages.rs`
+- [x] Task: Conductor - User Manual Verification 'Utility & Idempotency Refactoring' (Protocol in workflow.md)
 
 ## Phase 4: Validation
 - [ ] Task: Run `cargo check` and `cargo clippy` — fix all warnings

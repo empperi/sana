@@ -31,6 +31,28 @@ pub async fn insert_message(
     Ok(())
 }
 
+pub async fn insert_message_with_fk_check(
+    tx: &mut Transaction<'_, Postgres>,
+    seq: u64,
+    msg: &ChatMessage,
+) -> Result<(), sqlx::Error> {
+    match insert_message(tx, seq, msg).await {
+        Ok(_) => Ok(()),
+        Err(e) if is_foreign_key_violation(&e) => {
+            tracing::warn!("Orphan message {} skipped (FK violation).", seq);
+            Ok(())
+        },
+        Err(e) => Err(e),
+    }
+}
+
+fn is_foreign_key_violation(e: &sqlx::Error) -> bool {
+    if let Some(db_err) = e.as_database_error() {
+        return db_err.code().map(|c| c == "23503").unwrap_or(false);
+    }
+    false
+}
+
 pub async fn get_max_seq(tx: &mut Transaction<'_, Postgres>) -> Result<Option<u64>, sqlx::Error> {
     let row: Option<(Option<i64>,)> = sqlx::query_as(
         "SELECT MAX(seq) FROM messages"
