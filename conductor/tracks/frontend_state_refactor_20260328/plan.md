@@ -101,22 +101,25 @@ The 31-line `on_create_channel` and 44-line `on_join_channel` callbacks (lines 8
 
 ## Implementation Steps
 
-- [x] **Task: Create `frontend/src/state.rs` with `ChatAction` enum and reducer**
-- [x] **Task: Create `ChatStateProvider` component using `use_reducer`**
-- [x] **Task: Add `state.rs` to `frontend/src/lib.rs` module tree**
-- [x] **Task: Wrap root component with provider in `main.rs`**
-- [x] **Task: Refactor `use_chat_websocket` hook — replace `state_ref` with context**
-- [x] **Task: Refactor `use_channels` hook — replace `state_ref` with context**
-- [x] **Task: Refactor `main.rs` callbacks — extract to `logic.rs`, use dispatch**
-- [x] **Task: Remove `state_ref` and manual sync from `main.rs`**
-- [x] **Task: Run `cargo check --target wasm32-unknown-unknown` and fix any issues**
-- [x] **Task: Run existing frontend tests — ensure no regressions**
+- [x] **Task: Create `frontend/src/state.rs` with `ChatAction` enum and reducer** 3a1b20a
+- [x] **Task: Create `ChatStateProvider` component using `use_reducer`** 3a1b20a
+- [x] **Task: Add `state.rs` to `frontend/src/lib.rs` module tree** 3a1b20a
+- [x] **Task: Wrap root component with provider in `main.rs`** 3a1b20a
+- [x] **Task: Refactor `use_chat_websocket` hook — replace `state_ref` with context** 3a1b20a
+- [x] **Task: Refactor `use_channels` hook — replace `state_ref` with context** 3a1b20a
+- [x] **Task: Refactor `main.rs` callbacks — extract to `logic.rs`, use dispatch** 3a1b20a
+- [x] **Task: Remove `state_ref` and manual sync from `main.rs`** 3a1b20a
+- [x] **Task: Run `cargo check --target wasm32-unknown-unknown` and fix any issues** 3a1b20a
+- [x] **Task: Run existing frontend tests — ensure no regressions** 3a1b20a
 
 ## Verification
 - Frontend compiles without warnings
 - All existing `frontend/tests/logic_tests.rs` tests pass
 - Manual test: channels load, messages send/receive, reconnection works
 - Verify via Playwright: page loads, chat works end-to-end
+
+## Phase: Review Fixes
+- [x] Task: Apply review suggestions 5372c1f
 
 ## Risk & Rollback
 This is a large refactor touching most frontend files. Mitigations:
