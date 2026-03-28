@@ -4,11 +4,6 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [x] **Track: Frontend State Refactor — Review Fixes**
-  *Link: [./tracks/frontend_state_refactor_fixes_20260328/](./tracks/frontend_state_refactor_fixes_20260328/)*
-
----
-
 - [ ] **Track: Backend Function Decomposition**
   *Link: [./tracks/backend_function_decomposition_20260328/](./tracks/backend_function_decomposition_20260328/)*
 
