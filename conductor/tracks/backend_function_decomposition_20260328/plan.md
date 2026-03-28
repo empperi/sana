@@ -1,6 +1,6 @@
 # Implementation Plan: Backend Function Decomposition
 
-## Phase 1: State & Infrastructure
+## Phase 1: State & Infrastructure [checkpoint: a029b59]
 - [x] Task: Add `dashmap` dependency to root `Cargo.toml`
 - [x] Task: Refactor `state.rs` to use `DashMap` and update `load_channels_from_db`
 - [x] Task: Update call sites for channel maps to remove `.lock().await`
