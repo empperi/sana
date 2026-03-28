@@ -16,7 +16,7 @@
 - [x] Task: Conductor - User Manual Verification 'Frontend Logic & Service Tests' (Protocol in workflow.md)
 
 ## Phase 4: Frontend Hook Tests
-- [ ] Task: Create `frontend/tests/hooks_tests.rs` for `use_channels`, `use_chat_scroll`, and `use_auth_check`
+- [~] Task: Create `frontend/tests/hooks_tests.rs` for `use_channels`, `use_chat_scroll`, and `use_auth_check`
 - [ ] Task: Conductor - User Manual Verification 'Frontend Hook Tests' (Protocol in workflow.md)
 
 ## Phase 5: Final Validation
