@@ -15,9 +15,9 @@
 - [x] Task: Create `frontend/tests/websocket_service_tests.rs` with WebSocket mock
 - [x] Task: Conductor - User Manual Verification 'Frontend Logic & Service Tests' (Protocol in workflow.md)
 
-## Phase 4: Frontend Hook Tests
-- [~] Task: Create `frontend/tests/hooks_tests.rs` for `use_channels`, `use_chat_scroll`, and `use_auth_check`
-- [ ] Task: Conductor - User Manual Verification 'Frontend Hook Tests' (Protocol in workflow.md)
+## Phase 4: Frontend Hook Tests [checkpoint: 5912641]
+- [x] Task: Create `frontend/tests/hooks_tests.rs` for `use_channels`, `use_chat_scroll`, and `use_auth_check`
+- [x] Task: Conductor - User Manual Verification 'Frontend Hook Tests' (Protocol in workflow.md)
 
 ## Phase 5: Final Validation
 - [ ] Task: Run all backend and frontend tests to ensure total system health
