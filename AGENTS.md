@@ -63,10 +63,14 @@ never bash or Unix shell syntax.
 
 # MCP tools
 
-- For symbol lookups (functions, structs, types, trait impls), high-level project mapping, and advanced searching,
-  always prioritize the `code-indexer` MCP server over grep/glob tools.
+- For code search and symbol lookups, always prioritize the `code-indexer` MCP server over grep/glob/read tools.
+  It returns targeted snippets instead of full file contents, saving significant context.
+- Available tools on `code-indexer`:
+  - `symbols` — list all functions, structs, impl blocks, traits, constants in a file with line numbers
+  - `search` — keyword/semantic search across the codebase, returns relevant snippets
+  - `query` — structural AST pattern search using tree-sitter S-expressions (e.g. `(fn_item name: (identifier) @name)`)
+  - `extract` — extract a specific code block by file path + line number or symbol name
 - If the indexer is unavailable or fails, fall back to grep/glob/read tools.
-- After large batches of changes, call the indexer's `reindex` tool to keep its context current.
 - Whenever asked to "verify the UI", "check the page", or visually confirm a change, use the **Playwright** MCP
   server to navigate the app and confirm the result.
 

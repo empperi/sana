@@ -111,7 +111,9 @@ Gemini CLI will automatically load `GEMINI.md` (which imports `AGENTS.md`) and c
 
 ### Code Indexer (MCP)
 
-Both tools use the [ViperJuice/Code-Index-MCP](https://github.com/ViperJuice/Code-Index-MCP) server for high-speed symbol lookups, deep code searching, and architectural analysis. It runs automatically via the respective tool's `settings.json` using a Docker container — no manual startup required.
+Both tools use [probe by probelabs](https://github.com/probelabs/probe) for high-speed code search, symbol extraction, and AST-based structural queries with tree-sitter Rust support. It runs automatically via the respective tool's `settings.json` using a Docker container built from `Dockerfile.indexer` — no manual startup required.
+
+Available MCP tools: `search_code`, `extract_code`, `grep`.
 
 ### Optional: cargo check hook
 

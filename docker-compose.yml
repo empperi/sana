@@ -46,7 +46,10 @@ services:
       retries: 5
 
   indexer:
-    image: ghcr.io/mosif16/index-mcp:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.indexer
     stdin_open: true
     volumes:
-      - ./:/workspace
+      - ./:/workspace:ro
+    working_dir: /workspace
