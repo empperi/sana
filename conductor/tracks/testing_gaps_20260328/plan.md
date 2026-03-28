@@ -6,8 +6,8 @@
 - [x] Task: Conductor - User Manual Verification 'Backend Core Logic Tests' (Protocol in workflow.md)
 
 ## Phase 2: Backend Infrastructure Tests
-- [ ] Task: Create `tests/archiver_tests.rs` with mock NATS/DB interactions
-- [ ] Task: Create `tests/nats_consumer_tests.rs` to verify broadcast relay
+- [x] Task: Create `tests/archiver_tests.rs` with mock NATS/DB interactions
+- [x] Task: Create `tests/nats_consumer_tests.rs` to verify broadcast relay
 - [ ] Task: Conductor - User Manual Verification 'Backend Infrastructure Tests' (Protocol in workflow.md)
 
 ## Phase 3: Frontend Logic & Service Tests

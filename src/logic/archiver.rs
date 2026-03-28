@@ -76,6 +76,7 @@ pub async fn start_with_durable(state: AppState, durable_name: String) {
 
 async fn handle_message(message: async_nats::jetstream::message::Message, state: &AppState) {
     let subject = message.subject.to_string();
+    tracing::debug!("Archiver: Received message on subject: {}", subject);
     let Some(encoded_channel_name) = subject.strip_prefix("topic.") else { 
         tracing::warn!("Archiver: Received message with invalid subject: {}", subject);
         let _ = message.ack().await;
