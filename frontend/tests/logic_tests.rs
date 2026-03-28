@@ -311,3 +311,76 @@ fn test_message_update_with_seq() {
         panic!("Expected Message variant");
     }
 }
+
+#[test]
+fn test_handle_batch_message() {
+    let mut state = ChatState::new();
+    let msg1 = ChatMessage {
+        id: Uuid::new_v4(),
+        channel_id: Uuid::new_v4(),
+        user_id: Uuid::new_v4(),
+        user: "A".to_string(),
+        timestamp: Utc::now(),
+        message: "1".to_string(),
+        pending: false,
+        seq: Some(1),
+        msg_type: MessageType::Chat,
+    };
+    let msg2 = ChatMessage {
+        id: Uuid::new_v4(),
+        channel_id: Uuid::new_v4(),
+        user_id: Uuid::new_v4(),
+        user: "B".to_string(),
+        timestamp: Utc::now(),
+        message: "2".to_string(),
+        pending: false,
+        seq: Some(2),
+        msg_type: MessageType::Chat,
+    };
+    
+    let batch = ChannelEntry::Batch(vec![
+        ChannelEntry::Message(msg1),
+        ChannelEntry::Message(msg2),
+    ]);
+    
+    state.handle_message("General".to_string(), batch);
+    
+    let entries = state.messages.get("General").unwrap();
+    assert_eq!(entries.len(), 2);
+}
+
+#[test]
+fn test_handle_read_marker() {
+    let mut state = ChatState::new();
+    let user_id = Uuid::new_v4();
+    state.user_id = user_id;
+    let message_id = Uuid::new_v4();
+    
+    // 1. Another channel has unread
+    state.unread_channels.insert("other".to_string());
+    
+    // 2. Handle read marker for that user
+    let marker = ChannelEntry::ReadMarker { user_id, message_id };
+    state.handle_message("other".to_string(), marker);
+    
+    // 3. Metadata should be updated
+    assert_eq!(state.last_read_message_map.get("other"), Some(&Some(message_id)));
+    
+    // 4. Since it's not the current channel, it might still be unread 
+    // IF the marked message is not the last one. 
+    // In this test, there are NO messages, so it should be considered read.
+    assert!(!state.unread_channels.contains("other"));
+}
+
+#[test]
+fn test_handle_read_marker_other_user_ignored() {
+    let mut state = ChatState::new();
+    state.user_id = Uuid::new_v4();
+    let other_user = Uuid::new_v4();
+    let message_id = Uuid::new_v4();
+    
+    let marker = ChannelEntry::ReadMarker { user_id: other_user, message_id };
+    state.handle_message("General".to_string(), marker);
+    
+    assert_eq!(state.last_read_message_map.get("General"), None);
+}

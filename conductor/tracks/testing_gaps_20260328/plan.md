@@ -11,7 +11,7 @@
 - [x] Task: Conductor - User Manual Verification 'Backend Infrastructure Tests' (Protocol in workflow.md)
 
 ## Phase 3: Frontend Logic & Service Tests
-- [ ] Task: Extend `frontend/tests/logic_tests.rs` with edge cases (Batch entries, out-of-order read markers)
+- [~] Task: Extend `frontend/tests/logic_tests.rs` with edge cases (Batch entries, out-of-order read markers)
 - [ ] Task: Create `frontend/tests/websocket_service_tests.rs` with WebSocket mock
 - [ ] Task: Conductor - User Manual Verification 'Frontend Logic & Service Tests' (Protocol in workflow.md)
 

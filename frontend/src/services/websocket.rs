@@ -206,7 +206,7 @@ impl WebSocketService {
         Ok(())
     }
 
-    async fn flush_outgoing_buffer<W>(
+    pub async fn flush_outgoing_buffer<W>(
         write: &mut W,
         outgoing_buffer: Rc<RefCell<Vec<String>>>
     ) -> Result<(), ()>
@@ -254,7 +254,7 @@ impl WebSocketService {
     }
 }
 
-fn prepare_subscription_frame(msg: String) -> (String, Option<String>) {
+pub fn prepare_subscription_frame(msg: String) -> (String, Option<String>) {
     if !msg.starts_with("SUBSCRIBE") { return (msg, None); }
     
     let last_seen_seq = msg.lines()

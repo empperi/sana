@@ -19,3 +19,7 @@ web-sys = { version = "0.3", features = ["HtmlInputElement", "HtmlElement", "Ele
 chrono = { version = "0.4", features = ["serde", "wasmbind"] }
 uuid = { version = "1.0", features = ["v4", "serde", "js"] }
 yew-router = "0.18.0"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+tokio = { version = "1", features = ["full"] }
