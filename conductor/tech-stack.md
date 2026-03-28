@@ -11,6 +11,7 @@
 
 ## Frontend Architecture
 - **Yew:** The WebAssembly framework used for building a fast and responsive user interface in Rust.
+    - **State Management:** Single global "database" state using **Yew Context** and the **Reducible** pattern for predictable state mutations.
 - **Trunk:** The web application bundler and development server used to proxy API requests and build the Wasm binary.
 - **Gloo:** A collection of high-level Rust wrappers for common browser APIs (HTTP, timers, events).
 
