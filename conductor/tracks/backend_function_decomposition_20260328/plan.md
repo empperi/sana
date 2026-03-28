@@ -6,7 +6,7 @@
 - [x] Task: Update call sites for channel maps to remove `.lock().await`
 - [x] Task: Conductor - User Manual Verification 'State & Infrastructure' (Protocol in workflow.md)
 
-## Phase 2: Core Logic Refactoring
+## Phase 2: Core Logic Refactoring [checkpoint: c2ebd0d]
 - [x] Task: Extract helper functions from `handle_subscribe()` in `ws_logic.rs`
 - [x] Task: Extract helper functions from `process_and_publish_message()` in `ws_logic.rs`
 - [x] Task: Introduce `WsContext` struct and refactor `decide()` signature
