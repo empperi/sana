@@ -3,6 +3,7 @@ use yew_router::prelude::*;
 pub mod components;
 pub mod services;
 pub mod types;
+pub mod state;
 pub mod stomp;
 pub mod logic;
 pub mod hooks;

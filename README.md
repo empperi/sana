@@ -98,6 +98,14 @@ claude
 
 Claude Code will automatically load `CLAUDE.md` (which imports `AGENTS.md`) and connect to the configured MCP servers. Four domain-specific subagents are pre-configured in `.claude/agents/` and selected automatically based on the task at hand.
 
+Install the Conductor plugin for structured multi-phase development workflows:
+
+```
+/plugin marketplace add lackeyjb/claude-conductor
+/plugin install conductor@claude-conductor
+/reload-plugins
+```
+
 ### Activating Gemini CLI
 
 Install Gemini CLI and start a session in the project root:
@@ -108,6 +116,19 @@ gemini
 ```
 
 Gemini CLI will automatically load `GEMINI.md` (which imports `AGENTS.md`) and connect to the configured MCP servers. Four domain-specific skills are pre-configured in `.gemini/skills/`.
+
+Install the Conductor extension for structured multi-phase development workflows:
+[gemini-cli-extensions/conductor](https://github.com/gemini-cli-extensions/conductor)
+
+### Conductor — Structured Development Workflow
+
+The `conductor/` directory contains implementation plans for significant features and architectural changes. Each plan is a markdown file describing the objective, background, affected files, implementation steps, and verification criteria.
+
+Conductor provides a structured workflow for both tools:
+- **Plan files** (`conductor/*.md`) define phases of work with clear steps and success criteria
+- **Phased execution** — work through plans phase by phase with verification between each
+- **Context-driven** — plans include all context an agent needs to implement safely without guessing
+
 
 ### Code Indexer (MCP)
 

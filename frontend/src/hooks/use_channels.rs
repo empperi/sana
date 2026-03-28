@@ -1,9 +1,7 @@
 use yew::prelude::*;
 use gloo_net::http::Request;
 use web_sys::RequestCredentials;
-use crate::logic::ChatState;
-use std::rc::Rc;
-use std::cell::RefCell;
+use crate::state::{ChatStateContext, ChatAction};
 
 async fn fetch_channels() -> Result<Vec<crate::types::Channel>, String> {
     let response = Request::get("/api/channels")
@@ -22,19 +20,16 @@ async fn fetch_channels() -> Result<Vec<crate::types::Channel>, String> {
 #[hook]
 pub fn use_channels(
     auth_check_done: bool,
-    chat_state: UseStateHandle<ChatState>,
-    state_ref: Rc<RefCell<ChatState>>,
 ) {
+    let ctx = use_context::<ChatStateContext>().expect("ChatStateContext not found");
+    let dispatch = ctx.dispatch.clone();
+
     use_effect_with(auth_check_done, move |&done| {
         if done {
             wasm_bindgen_futures::spawn_local(async move {
                 match fetch_channels().await {
                     Ok(channels) => {
-                        let mut state = (*state_ref.borrow()).clone();
-                        state.set_channels(channels);
-                        
-                        *state_ref.borrow_mut() = state.clone();
-                        chat_state.set(state);
+                        dispatch.emit(ChatAction::SetChannels(channels));
                     },
                     Err(e) => {
                         gloo_console::error!(format!("Failed to fetch channels: {}", e));

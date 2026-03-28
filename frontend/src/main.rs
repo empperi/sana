@@ -13,10 +13,11 @@ use frontend::components::auth::{Login, Register};
 use frontend::components::join_channel_modal::JoinChannelModal;
 use frontend::services::websocket::{WebSocketService, StompClient};
 use frontend::types::{ChatMessage, ChannelEntry, MessageType};
-use frontend::logic::ChatState;
+use frontend::logic::{self, ChatState, ChatAction};
 use frontend::stomp;
 use frontend::Route;
 use frontend::hooks::{use_auth_check, use_chat_websocket, use_channels};
+use frontend::state::{ChatStateContext, ChatStateProvider};
 
 async fn fetch_historical_messages(channel_id: Uuid, limit: i64, before: Option<chrono::DateTime<Utc>>) -> Result<Vec<frontend::types::ChatMessage>, String> {
     let mut url = format!("/api/channels/{}/messages?limit={}", channel_id, limit);
@@ -41,88 +42,53 @@ async fn fetch_historical_messages(channel_id: Uuid, limit: i64, before: Option<
 #[function_component(ChatApp)]
 pub fn chat_app() -> Html {
     let auth_check_done = use_auth_check();
-
-    let chat_state = use_state(ChatState::new);
-    let state_ref = use_mut_ref(ChatState::new);
-
-    {
-        let state_ref = state_ref.clone();
-        use_effect_with(chat_state.clone(), move |chat_state| {
-            *state_ref.borrow_mut() = (**chat_state).clone();
-            || {}
-        });
-    }
+    let ctx = use_context::<ChatStateContext>().expect("ChatStateContext not found");
 
     let is_join_modal_open = use_state(|| false);
     let is_modal_create_mode = use_state(|| false);
 
-    let ws_service = use_chat_websocket(auth_check_done, chat_state.clone(), state_ref.clone());
+    let ws_service = use_chat_websocket(auth_check_done);
 
-    use_channels(auth_check_done, chat_state.clone(), state_ref.clone());
+    use_channels(auth_check_done);
 
     let on_switch_channel = {
-        let chat_state = chat_state.clone();
-        let state_ref = state_ref.clone();
+        let dispatch = ctx.dispatch.clone();
         Callback::from(move |channel: String| {
-            let mut state = (*state_ref.borrow()).clone();
-            state.switch_channel(channel);
-            *state_ref.borrow_mut() = state.clone();
-            chat_state.set(state);
+            dispatch.emit(ChatAction::SelectChannel(channel));
         })
     };
 
     let on_create_channel = {
-        let chat_state = chat_state.clone();
-        let state_ref = state_ref.clone();
+        let dispatch = ctx.dispatch.clone();
         let ws_service = ws_service.clone();
         let on_switch_channel = on_switch_channel.clone();
         let is_join_modal_open = is_join_modal_open.clone();
         Callback::from(move |name: String| {
-            let chat_state = chat_state.clone();
-            let state_ref = state_ref.clone();
+            let dispatch = dispatch.clone();
             let ws_service = ws_service.clone();
             let on_switch_channel = on_switch_channel.clone();
             let is_join_modal_open = is_join_modal_open.clone();
 
             wasm_bindgen_futures::spawn_local(async move {
-                let payload = serde_json::json!({
-                    "name": name
-                });
-
-                let resp = Request::post("/api/channels")
-                    .credentials(RequestCredentials::Include)
-                    .json(&payload)
-                    .unwrap()
-                    .send()
-                    .await;
-
-                if let Ok(r) = resp {
-                    if r.status() == 201 {
-                        if let Ok(channel) = r.json::<frontend::types::Channel>().await {
-                            let mut state = (*state_ref.borrow()).clone();
-                            state.join_channel(channel.clone());
-                            
-                            if let Some(service) = &*ws_service.borrow() {
-                                service.send(stomp::create_subscribe_frame(&channel.name, None, None));
-                            }
-
-                            *state_ref.borrow_mut() = state.clone();
-                            chat_state.set(state);
-                            is_join_modal_open.set(false);
-                            on_switch_channel.emit(channel.name);
-                        }
-                    }
-                }
+                logic::create_channel(
+                    name, 
+                    dispatch, 
+                    ws_service, 
+                    Callback::from(move |channel_name| {
+                        is_join_modal_open.set(false);
+                        on_switch_channel.emit(channel_name);
+                    })
+                ).await;
             });
         })
     };
 
     let on_send_message = {
-        let chat_state = chat_state.clone();
-        let state_ref = state_ref.clone();
+        let dispatch = ctx.dispatch.clone();
+        let state = ctx.state.clone();
         let ws_service = ws_service.clone();
         Callback::from(move |text: String| {
-            handle_send_message(text, &chat_state, &state_ref, &ws_service);
+            handle_send_message(text, &state, &dispatch, &ws_service);
         })
     };
 
@@ -150,47 +116,27 @@ pub fn chat_app() -> Html {
     };
 
     let on_join_channel = {
-        let chat_state = chat_state.clone();
-        let state_ref = state_ref.clone();
+        let dispatch = ctx.dispatch.clone();
         let ws_service = ws_service.clone();
         let is_join_modal_open = is_join_modal_open.clone();
         let on_switch_channel = on_switch_channel.clone();
 
         Callback::from(move |channel: frontend::types::Channel| {
-            let chat_state = chat_state.clone();
-            let state_ref = state_ref.clone();
+            let dispatch = dispatch.clone();
             let ws_service = ws_service.clone();
             let is_join_modal_open = is_join_modal_open.clone();
             let on_switch_channel = on_switch_channel.clone();
-            let channel_to_join = channel.clone();
 
             wasm_bindgen_futures::spawn_local(async move {
-                let payload = serde_json::json!({
-                    "channel_id": channel_to_join.id
-                });
-
-                let resp = Request::post("/api/channels/join")
-                    .credentials(RequestCredentials::Include)
-                    .json(&payload)
-                    .unwrap()
-                    .send()
-                    .await;
-
-                if let Ok(r) = resp {
-                    if r.status() == 200 {
-                        let mut state = (*state_ref.borrow()).clone();
-                        state.join_channel(channel_to_join.clone());
-                        
-                        if let Some(service) = &*ws_service.borrow() {
-                            service.send(stomp::create_subscribe_frame(&channel_to_join.name, None, None));
-                        }
-
-                        *state_ref.borrow_mut() = state.clone();
-                        chat_state.set(state);
+                logic::join_channel(
+                    channel, 
+                    dispatch, 
+                    ws_service, 
+                    Callback::from(move |channel_name| {
                         is_join_modal_open.set(false);
-                        on_switch_channel.emit(channel_to_join.name);
-                    }
-                }
+                        on_switch_channel.emit(channel_name);
+                    })
+                ).await;
             });
         })
     };
@@ -211,18 +157,16 @@ pub fn chat_app() -> Html {
     };
 
     let on_load_history = {
-        let chat_state = chat_state.clone();
-        let state_ref = state_ref.clone();
+        let state = ctx.state.clone();
+        let dispatch = ctx.dispatch.clone();
         Callback::from(move |(channel_name, before): (String, Option<DateTime<Utc>>)| {
-            let state = (*state_ref.borrow()).clone();
-            let state_ref = state_ref.clone();
-            let chat_state = chat_state.clone();
+            let state = state.clone();
+            let dispatch = dispatch.clone();
             
             if let Some(channel_id) = state.channel_id_map.get(&channel_name).cloned() {
                 wasm_bindgen_futures::spawn_local(async move {
                     match fetch_historical_messages(channel_id, 100, before).await {
                         Ok(messages) => {
-                            let mut current_state = (*state_ref.borrow()).clone();
                             let entries = messages.into_iter().map(|msg| {
                                 match msg.msg_type {
                                     MessageType::Join => ChannelEntry::UserJoined {
@@ -234,9 +178,7 @@ pub fn chat_app() -> Html {
                                     MessageType::Chat => ChannelEntry::Message(msg),
                                 }
                             }).collect();
-                            current_state.prepend_historical_messages(channel_name, entries);
-                            *state_ref.borrow_mut() = current_state.clone();
-                            chat_state.set(current_state);
+                            dispatch.emit(ChatAction::PrependHistory { channel: channel_name, history: entries });
                         }
                         Err(e) => gloo_console::error!(format!("Failed to load history: {}", e)),
                     }
@@ -250,7 +192,7 @@ pub fn chat_app() -> Html {
     }
 
     render_app(
-        &chat_state, 
+        &ctx.state, 
         on_switch_channel, 
         on_create_channel, 
         on_send_message,
@@ -269,11 +211,10 @@ pub fn chat_app() -> Html {
 
 fn handle_send_message(
     text: String, 
-    chat_state: &UseStateHandle<ChatState>, 
-    state_ref: &Rc<RefCell<ChatState>>, 
+    state: &ChatState, 
+    dispatch: &Callback<ChatAction>,
     ws_service: &Rc<RefCell<Option<Rc<WebSocketService>>>>
 ) {
-    let mut state = (*state_ref.borrow()).clone();
     let message_id = Uuid::new_v4();
     let channel_name = state.current_channel.clone();
     
@@ -291,17 +232,15 @@ fn handle_send_message(
         msg_type: MessageType::Chat,
     };
 
-    state.add_pending_message(channel_name.clone(), pending_msg);
+    dispatch.emit(ChatAction::AddPendingMessage { channel: channel_name.clone(), msg: pending_msg });
     if let Some(service) = &*ws_service.borrow() {
         let service: &Rc<WebSocketService> = service;
         service.send(stomp::create_send_frame(&channel_name, &message_id.to_string(), &text));
     }
-    *state_ref.borrow_mut() = state.clone();
-    chat_state.set(state);
 }
 
 fn render_app(
-    chat_state: &UseStateHandle<ChatState>,
+    chat_state: &ChatState,
     on_switch_channel: Callback<String>,
     on_create_channel: Callback<String>,
     on_send_message: Callback<String>,
@@ -376,7 +315,9 @@ fn switch(routes: Route) -> Html {
 fn app() -> Html {
     html! {
         <BrowserRouter>
-            <Switch<Route> render={switch} />
+            <ChatStateProvider>
+                <Switch<Route> render={switch} />
+            </ChatStateProvider>
         </BrowserRouter>
     }
 }

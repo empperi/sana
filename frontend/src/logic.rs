@@ -1,7 +1,77 @@
 use std::collections::{HashMap, HashSet};
 use crate::types::{ChatMessage, Channel, ChannelEntry};
-use crate::services::websocket::ConnectionStatus;
+use crate::services::websocket::{WebSocketService, ConnectionStatus, StompClient};
+use crate::stomp;
 use uuid::Uuid;
+use yew::prelude::*;
+use gloo_net::http::Request;
+use web_sys::RequestCredentials;
+use std::rc::Rc;
+use std::cell::RefCell;
+
+pub async fn create_channel(
+    name: String, 
+    dispatch: Callback<ChatAction>, 
+    ws_service: Rc<RefCell<Option<Rc<WebSocketService>>>>,
+    on_success: Callback<String>
+) {
+    let payload = serde_json::json!({
+        "name": name
+    });
+
+    let resp = Request::post("/api/channels")
+        .credentials(RequestCredentials::Include)
+        .json(&payload)
+        .unwrap()
+        .send()
+        .await;
+
+    if let Ok(r) = resp {
+        if r.status() == 201 {
+            if let Ok(channel) = r.json::<Channel>().await {
+                dispatch.emit(ChatAction::JoinChannel(channel.clone()));
+                
+                if let Some(service) = &*ws_service.borrow() {
+                    service.send(stomp::create_subscribe_frame(&channel.name, None, None));
+                    dispatch.emit(ChatAction::AddSubscribedChannel(channel.name.clone()));
+                }
+
+                on_success.emit(channel.name);
+            }
+        }
+    }
+}
+
+pub async fn join_channel(
+    channel: Channel, 
+    dispatch: Callback<ChatAction>, 
+    ws_service: Rc<RefCell<Option<Rc<WebSocketService>>>>,
+    on_success: Callback<String>
+) {
+    let payload = serde_json::json!({
+        "channel_id": channel.id
+    });
+
+    let resp = Request::post("/api/channels/join")
+        .credentials(RequestCredentials::Include)
+        .json(&payload)
+        .unwrap()
+        .send()
+        .await;
+
+    if let Ok(r) = resp {
+        if r.status() == 200 {
+            dispatch.emit(ChatAction::JoinChannel(channel.clone()));
+            
+            if let Some(service) = &*ws_service.borrow() {
+                service.send(stomp::create_subscribe_frame(&channel.name, None, None));
+                dispatch.emit(ChatAction::AddSubscribedChannel(channel.name.clone()));
+            }
+
+            on_success.emit(channel.name);
+        }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ChatState {
@@ -17,6 +87,22 @@ pub struct ChatState {
     pub unread_channels: HashSet<String>,
     pub subscribed_channels: HashSet<String>,
     pub connection_status: ConnectionStatus,
+}
+
+#[derive(Clone, PartialEq)]
+pub enum ChatAction {
+    HandleMessage { channel: String, entry: ChannelEntry },
+    PrependHistory { channel: String, history: Vec<ChannelEntry> },
+    HandleSystemMessage(String),
+    SelectChannel(String),
+    SetConnectionStatus(ConnectionStatus),
+    SetUserInfo { username: String, user_id: Uuid },
+    SetChannels(Vec<Channel>),
+    JoinChannel(Channel),
+    AddPendingChannel(String),
+    AddPendingMessage { channel: String, msg: ChatMessage },
+    AddSubscribedChannel(String),
+    ClearSubscriptions,
 }
 
 impl ChatState {
