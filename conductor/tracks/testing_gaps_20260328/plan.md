@@ -1,9 +1,9 @@
 # Implementation Plan: Testing Gaps
 
-## Phase 1: Backend Core Logic Tests
+## Phase 1: Backend Core Logic Tests [checkpoint: 3bf4a07]
 - [x] Task: Extend `tests/ws_logic_tests.rs` with coverage for `handle_subscribe` and `process_and_publish_message`
 - [x] Task: Create `tests/state_tests.rs` to verify concurrent channel registration
-- [~] Task: Conductor - User Manual Verification 'Backend Core Logic Tests' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Backend Core Logic Tests' (Protocol in workflow.md)
 
 ## Phase 2: Backend Infrastructure Tests
 - [ ] Task: Create `tests/archiver_tests.rs` with mock NATS/DB interactions
