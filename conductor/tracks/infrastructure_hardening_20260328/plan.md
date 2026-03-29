@@ -8,7 +8,7 @@
 - [x] Task: Move `COOKIE_KEY` to `.env` reference in `docker-compose.yml`
 - [x] Task: Conductor - User Manual Verification 'Docker & Nginx' (Protocol in workflow.md)
 
-## Phase 2: Application Health & Config
+## Phase 2: Application Health & Config [checkpoint: 4e06451]
 - [x] Task: Add `/health` endpoint to backend in `src/router.rs`
 - [x] Task: Add health check to `app` service in `docker-compose.yml`
 - [x] Task: Make CORS origin configurable in `src/config.rs` and `src/router.rs`
