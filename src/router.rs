@@ -10,12 +10,13 @@ use crate::{ws, auth, channels};
 
 pub fn create_router(combined_state: CombinedState) -> Router {
     let cors = CorsLayer::new()
-        .allow_origin("http://localhost:8080".parse::<HeaderValue>().unwrap())
+        .allow_origin(combined_state.config.cors_origin.parse::<HeaderValue>().unwrap())
         .allow_methods([Method::GET, Method::POST])
         .allow_headers([axum::http::header::CONTENT_TYPE])
         .allow_credentials(true);
 
     Router::new()
+        .route("/health", get(|| async { "OK" }))
         .route("/ws", get(ws::ws_handler))
         .nest("/api/auth", auth::router())
         .nest("/api/channels", channels::router())

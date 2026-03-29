@@ -6,12 +6,22 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
-      - app
+      app:
+        condition: service_healthy
 
   app:
     build: .
     deploy:
       replicas: 2
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     depends_on:
       db:
         condition: service_healthy
@@ -21,11 +31,16 @@ services:
       - RUST_LOG=sana=debug,tower_http=debug
       - NATS_URL=nats://nats:4222
       - DATABASE_URL=postgres://sana_user:sana_password@db:5432/sana_db
-      - COOKIE_KEY=70830F18572093B2C1B1FE0239E0276087F746407DD7E84301CC582052BF6D3469FAB2DD1CD3D9CD9CEA32386EAE066664A37BE1134BB4F6BF222E7DA98E0078
+      - COOKIE_KEY=${COOKIE_KEY}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:8080}
 
   nats:
     image: nats:latest
     command: ["-js"]
+    deploy:
+      resources:
+        limits:
+          memory: 256M
     ports:
       - "4222:4222"
       - "8222:8222"
@@ -33,12 +48,18 @@ services:
   db:
     image: postgres:16-alpine
     restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     environment:
       POSTGRES_DB: sana_db
       POSTGRES_USER: sana_user
       POSTGRES_PASSWORD: sana_password
     ports:
       - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U sana_user -d sana_db"]
       interval: 5s
@@ -53,3 +74,6 @@ services:
     volumes:
       - ./:/workspace:ro
     working_dir: /workspace
+
+volumes:
+  pgdata:

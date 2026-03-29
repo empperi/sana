@@ -42,7 +42,7 @@ RUN trunk build --release
 FROM debian:bookworm-slim as runtime
 
 # Install OpenSSL and CA certificates which are often needed
-RUN apt-get update && apt-get install -y libssl-dev ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y libssl-dev ca-certificates curl && rm -rf /var/lib/apt/lists/*
 
 # Copy the compiled binary from the build stage
 COPY --from=builder /usr/src/sana/target/release/sana /usr/local/bin/sana

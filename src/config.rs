@@ -6,6 +6,7 @@ use serde_json::Value;
 pub struct Config {
     pub nats_url: String,
     pub database_url: String,
+    pub cors_origin: String,
 }
 
 impl Default for Config {
@@ -29,6 +30,7 @@ impl Config {
             .and_then(|content| serde_json::from_str::<Value>(&content).ok());
 
         let nats_url = Self::get_value("nats_url", "nats://127.0.0.1:4222", &config_file);
+        let cors_origin = Self::get_value("cors_origin", "http://localhost:8080", &config_file);
         
         // Prioritize a direct DATABASE_URL environment variable
         let database_url = if let Ok(url) = env::var("DATABASE_URL") {
@@ -40,6 +42,7 @@ impl Config {
         Self {
             nats_url,
             database_url,
+            cors_origin,
         }
     }
 
