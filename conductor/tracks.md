@@ -5,5 +5,4 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [x] **Track: Infrastructure Hardening**
-  *Link: [./tracks/infrastructure_hardening_20260328/](./tracks/infrastructure_hardening_20260328/)*
+No active tracks
