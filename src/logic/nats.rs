@@ -6,16 +6,33 @@ pub async fn start_nats_subscriber(state: AppState) {
     
     // Use an ephemeral ordered consumer to get ONLY NEW messages from the stream.
     // History is served from the database and bridging in-memory store.
-    let mut messages = jetstream.get_stream("SANA").await.unwrap()
-        .create_consumer(async_nats::jetstream::consumer::pull::OrderedConfig {
+    let stream = match jetstream.get_stream("SANA").await {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::error!("NATS Subscriber: Failed to get stream: {}", e);
+            return;
+        }
+    };
+
+    let consumer = match stream.create_consumer(async_nats::jetstream::consumer::pull::OrderedConfig {
             deliver_policy: async_nats::jetstream::consumer::DeliverPolicy::New,
             ..Default::default()
         })
-        .await
-        .unwrap()
-        .messages()
-        .await
-        .unwrap();
+        .await {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::error!("NATS Subscriber: Failed to create consumer: {}", e);
+                return;
+            }
+        };
+
+    let mut messages = match consumer.messages().await {
+        Ok(m) => m,
+        Err(e) => {
+            tracing::error!("NATS Subscriber: Failed to get messages: {}", e);
+            return;
+        }
+    };
 
     tokio::spawn(async move {
         while let Some(Ok(message)) = messages.next().await {
@@ -35,7 +52,13 @@ async fn handle_nats_message(message: async_nats::jetstream::message::Message, s
     };
 
     let payload = String::from_utf8_lossy(&message.payload).to_string();
-    let info = message.info().expect("Failed to get message info");
+    let info = match message.info() {
+        Ok(info) => info,
+        Err(e) => {
+            tracing::error!("NATS Subscriber: Failed to get message info: {}", e);
+            return;
+        }
+    };
     let sequence = info.stream_sequence;
     
     tracing::debug!("Received from NATS on {} (seq {}): {}", channel_name, sequence, payload);

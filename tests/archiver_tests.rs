@@ -16,6 +16,14 @@ async fn setup_app_state(db_name: &str) -> AppState {
     let config = Config::new();
     let nats_client = async_nats::connect(&config.nats_url).await.unwrap();
     let jetstream = async_nats::jetstream::new(nats_client.clone());
+    
+    // Ensure stream exists
+    jetstream.get_or_create_stream(async_nats::jetstream::stream::Config {
+        name: "SANA".to_string(),
+        subjects: vec!["topic.>".to_string()],
+        ..Default::default()
+    }).await.unwrap();
+
     AppState::new(nats_client, jetstream, ctx.pool)
 }
 

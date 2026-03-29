@@ -41,8 +41,15 @@ pub async fn start_with_durable(state: AppState, durable_name: String) {
     tracing::info!("Archiver: Starting with durable '{}' and deliver policy: {:?}", durable_name, deliver_policy);
 
     // Create a pull consumer with a durable_name to ensure we don't miss messages
-    let consumer = match jetstream.get_stream("SANA").await.unwrap()
-        .get_or_create_consumer(
+    let stream = match jetstream.get_stream("SANA").await {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::error!("Archiver: Failed to get stream for consumer: {}", e);
+            return;
+        }
+    };
+
+    let consumer = match stream.get_or_create_consumer(
             &durable_name,
             async_nats::jetstream::consumer::pull::Config {
                 durable_name: Some(durable_name.clone()),
