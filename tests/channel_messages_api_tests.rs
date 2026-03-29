@@ -11,13 +11,14 @@ use uuid::Uuid;
 
 #[path = "db/common.rs"]
 mod common;
-use common::{create_test_channel, create_test_user, TestContext};
+use common::{create_test_channel, create_test_user, join_test_channel, TestContext};
 
 #[tokio::test]
 async fn test_get_messages_success() {
     let ctx = TestContext::new("api_msg_success").await;
     let key = Key::generate();
     let (u, c) = (create_test_user(&ctx.pool, "u").await, create_test_channel(&ctx.pool, "c").await);
+    join_test_channel(&ctx.pool, u.id, c.id).await;
     insert_msg(&ctx, c.id, &u, "M1", Utc::now(), 1).await;
 
     let app = setup_app(&ctx, key.clone()).await;
@@ -28,10 +29,24 @@ async fn test_get_messages_success() {
 }
 
 #[tokio::test]
+async fn test_get_messages_forbidden() {
+    let ctx = TestContext::new("api_msg_forbidden").await;
+    let key = Key::generate();
+    let (u, c) = (create_test_user(&ctx.pool, "u").await, create_test_channel(&ctx.pool, "c").await);
+    // User DOES NOT join channel
+
+    let app = setup_app(&ctx, key.clone()).await;
+    let (status, _) = request(&app, &format!("/api/channels/{}/messages?limit=1", c.id), &auth_header(u.id, key)).await;
+
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
 async fn test_get_messages_missing_limit() {
     let ctx = TestContext::new("api_msg_no_limit").await;
     let key = Key::generate();
     let (u, c) = (create_test_user(&ctx.pool, "u").await, create_test_channel(&ctx.pool, "c").await);
+    join_test_channel(&ctx.pool, u.id, c.id).await;
 
     let app = setup_app(&ctx, key.clone()).await;
     let (status, _) = request(&app, &format!("/api/channels/{}/messages", c.id), &auth_header(u.id, key)).await;
@@ -44,6 +59,7 @@ async fn test_get_messages_pagination() {
     let ctx = TestContext::new("api_msg_pag").await;
     let key = Key::generate();
     let (u, c) = (create_test_user(&ctx.pool, "u").await, create_test_channel(&ctx.pool, "c").await);
+    join_test_channel(&ctx.pool, u.id, c.id).await;
     let now = Utc::now();
     insert_msg(&ctx, c.id, &u, "M1", now - Duration::minutes(1), 1).await;
     insert_msg(&ctx, c.id, &u, "M2", now, 2).await;
@@ -75,6 +91,7 @@ async fn test_get_messages_limit_too_high() {
     let ctx = TestContext::new("api_msg_limit_high").await;
     let key = Key::generate();
     let (u, c) = (create_test_user(&ctx.pool, "u").await, create_test_channel(&ctx.pool, "c").await);
+    join_test_channel(&ctx.pool, u.id, c.id).await;
 
     let app = setup_app(&ctx, key.clone()).await;
     let (status, _) = request(&app, &format!("/api/channels/{}/messages?limit=1001", c.id), &auth_header(u.id, key)).await;

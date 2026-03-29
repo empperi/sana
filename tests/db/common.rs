@@ -54,3 +54,10 @@ pub async fn create_test_channel(pool: &PgPool, name: &str) -> channels::Channel
     tx.commit().await.expect("Failed to commit test channel transaction");
     channel
 }
+
+#[allow(dead_code)]
+pub async fn join_test_channel(pool: &PgPool, user_id: Uuid, channel_id: Uuid) {
+    let mut tx = pool.begin().await.expect("Failed to start transaction");
+    channels::join_channel(&mut tx, user_id, channel_id).await.expect("Failed to join test channel");
+    tx.commit().await.expect("Failed to commit join test channel transaction");
+}

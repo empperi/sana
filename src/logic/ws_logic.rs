@@ -11,7 +11,29 @@ pub enum WsAction {
     PublishToNats(String, String, Option<String>, String), // subject, body, message_id, channel_name
     PublishReadMarker(String, Uuid), // channel_name, message_id
     SendReceipt(String), // receipt-id
+    Error(String, Option<String>), // message, receipt-id
     None,
+}
+
+#[derive(Debug)]
+pub enum WsError {
+    ChannelNotFound(String),
+    DatabaseError(String),
+    NatsError(String),
+    SerializationError(String),
+    InternalError(String),
+}
+
+impl std::fmt::Display for WsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            WsError::ChannelNotFound(c) => write!(f, "Channel not found: {}", c),
+            WsError::DatabaseError(e) => write!(f, "Database error: {}", e),
+            WsError::NatsError(e) => write!(f, "NATS error: {}", e),
+            WsError::SerializationError(e) => write!(f, "Serialization error: {}", e),
+            WsError::InternalError(e) => write!(f, "Internal error: {}", e),
+        }
+    }
 }
 
 pub struct WsContext {
@@ -200,6 +222,11 @@ fn format_stomp_message(channel_name: &str, entry: &ChannelEntry, json: &str) ->
     format!("MESSAGE\ndestination:/topic/{}\n{}\n{}\0", channel_name, seq_header, json)
 }
 
+pub fn format_stomp_error(message: &str, receipt_id: Option<&str>) -> String {
+    let receipt_header = receipt_id.map(|r| format!("receipt-id:{}\n", r)).unwrap_or_default();
+    format!("ERROR\n{}message:{}\n\n{}\0", receipt_header, message, message)
+}
+
 fn spawn_forwarding_task(channel_name: String, mut rx: tokio::sync::broadcast::Receiver<String>, tx_internal: tokio::sync::mpsc::Sender<String>) {
     tokio::spawn(async move {
         while let Ok(msg_json) = rx.recv().await {
@@ -248,48 +275,41 @@ pub async fn process_and_publish_message(
     username: &str, 
     channel_name: &str,
     state: &AppState
-) {
+) -> Result<(), WsError> {
     let id = message_id.and_then(|sid| Uuid::parse_str(&sid).ok()).unwrap_or_else(Uuid::new_v4);
     
-    let channel_id = match resolve_channel_id(channel_name, state).await {
-        Some(id) => id,
-        None => return,
-    };
+    let channel_id = resolve_channel_id(channel_name, state).await?;
 
     let chat_msg = build_chat_message(id, channel_id, user_id, username, body);
     let entry = ChannelEntry::Message(chat_msg);
 
-    if let Ok(json_body) = serde_json::to_string(&entry) {
-        publish_to_nats(subject, json_body, state).await;
-    }
+    let json_body = serde_json::to_string(&entry)
+        .map_err(|e| WsError::SerializationError(e.to_string()))?;
+
+    publish_to_nats(subject, json_body, state).await
 }
 
-pub async fn resolve_channel_id(channel_name: &str, state: &AppState) -> Option<Uuid> {
+pub async fn resolve_channel_id(channel_name: &str, state: &AppState) -> Result<Uuid, WsError> {
     if let Some(id) = state.channel_ids.get(channel_name).map(|r| *r.value()) {
-        return Some(id);
+        return Ok(id);
     }
 
     // Try to look up in DB
-    let mut tx = match state.db_pool.begin().await {
-        Ok(tx) => tx,
-        Err(e) => {
-            tracing::error!("Failed to start transaction for channel lookup: {}", e);
-            return None;
-        }
-    };
+    let mut tx = state.db_pool.begin().await
+        .map_err(|e| WsError::DatabaseError(e.to_string()))?;
 
     match crate::db::channels::get_channel_by_name(&mut tx, channel_name).await {
         Ok(Some(c)) => {
             state.channel_ids.insert(channel_name.to_string(), c.id);
-            Some(c.id)
+            Ok(c.id)
         },
         Ok(None) => {
             tracing::warn!("Attempted to resolve non-existent channel: {}", channel_name);
-            None
+            Err(WsError::ChannelNotFound(channel_name.to_string()))
         },
         Err(e) => {
             tracing::error!("Failed to look up channel by name: {}", e);
-            None
+            Err(WsError::DatabaseError(e.to_string()))
         }
     }
 }
@@ -307,18 +327,18 @@ pub fn build_chat_message(id: Uuid, channel_id: Uuid, user_id: Uuid, username: &
     }
 }
 
-async fn publish_to_nats(subject: String, body: String, state: &AppState) {
+async fn publish_to_nats(subject: String, body: String, state: &AppState) -> Result<(), WsError> {
     let payload = Bytes::from(body);
-    if let Err(e) = state.nats_client.publish(subject, payload).await {
-        tracing::error!("Failed to publish to NATS: {}", e);
-    }
+    state.nats_client.publish(subject, payload).await
+        .map_err(|e| WsError::NatsError(e.to_string()))
 }
 
-pub async fn publish_read_marker(channel_name: &str, user_id: Uuid, message_id: Uuid, state: &AppState) {
+pub async fn publish_read_marker(channel_name: &str, user_id: Uuid, message_id: Uuid, state: &AppState) -> Result<(), WsError> {
     let entry = ChannelEntry::ReadMarker { user_id, message_id };
     tracing::debug!("Publishing ReadMarker to NATS for channel {}: user {} read message {}", channel_name, user_id, message_id);
-    if let Ok(json_body) = serde_json::to_string(&entry) {
-        let subject = format!("topic.{}", crate::nats_util::encode(channel_name));
-        publish_to_nats(subject, json_body, state).await;
-    }
+    let json_body = serde_json::to_string(&entry)
+        .map_err(|e| WsError::SerializationError(e.to_string()))?;
+        
+    let subject = format!("topic.{}", crate::nats_util::encode(channel_name));
+    publish_to_nats(subject, json_body, state).await
 }

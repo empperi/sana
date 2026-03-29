@@ -107,6 +107,22 @@ pub async fn get_user_channels(
     Ok(channels)
 }
 
+pub async fn is_channel_member(
+    tx: &mut Transaction<'_, Postgres>,
+    user_id: Uuid,
+    channel_id: Uuid,
+) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query(
+        "SELECT 1 FROM user_channels WHERE user_id = $1 AND channel_id = $2"
+    )
+    .bind(user_id)
+    .bind(channel_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    Ok(result.is_some())
+}
+
 pub async fn search_unjoined_channels(
     pool: &sqlx::PgPool,
     user_id: Uuid,

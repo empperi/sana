@@ -2,41 +2,57 @@ use futures::StreamExt;
 use crate::state::AppState;
 
 pub async fn start_nats_subscriber(state: AppState) {
-    let jetstream = state.jetstream.clone();
-    
-    // Use an ephemeral ordered consumer to get ONLY NEW messages from the stream.
-    // History is served from the database and bridging in-memory store.
-    let stream = match jetstream.get_stream("SANA").await {
-        Ok(s) => s,
-        Err(e) => {
-            tracing::error!("NATS Subscriber: Failed to get stream: {}", e);
-            return;
-        }
-    };
-
-    let consumer = match stream.create_consumer(async_nats::jetstream::consumer::pull::OrderedConfig {
-            deliver_policy: async_nats::jetstream::consumer::DeliverPolicy::New,
-            ..Default::default()
-        })
-        .await {
-            Ok(c) => c,
-            Err(e) => {
-                tracing::error!("NATS Subscriber: Failed to create consumer: {}", e);
-                return;
-            }
-        };
-
-    let mut messages = match consumer.messages().await {
-        Ok(m) => m,
-        Err(e) => {
-            tracing::error!("NATS Subscriber: Failed to get messages: {}", e);
-            return;
-        }
-    };
-
     tokio::spawn(async move {
-        while let Some(Ok(message)) = messages.next().await {
-            handle_nats_message(message, &state).await;
+        loop {
+            let jetstream = state.jetstream.clone();
+            
+            // 1. Get stream
+            let stream = match jetstream.get_stream("SANA").await {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::error!("NATS Subscriber: Failed to get stream: {}. Retrying in 2s...", e);
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                    continue;
+                }
+            };
+
+            // 2. Create consumer
+            let consumer = match stream.create_consumer(async_nats::jetstream::consumer::pull::OrderedConfig {
+                deliver_policy: async_nats::jetstream::consumer::DeliverPolicy::New,
+                ..Default::default()
+            }).await {
+                Ok(c) => c,
+                Err(e) => {
+                    tracing::error!("NATS Subscriber: Failed to create consumer: {}. Retrying in 2s...", e);
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                    continue;
+                }
+            };
+
+            // 3. Get messages
+            let mut messages = match consumer.messages().await {
+                Ok(m) => m,
+                Err(e) => {
+                    tracing::error!("NATS Subscriber: Failed to get messages: {}. Retrying in 2s...", e);
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                    continue;
+                }
+            };
+
+            tracing::info!("NATS Subscriber: Successfully started");
+
+            // 4. Process messages
+            while let Some(msg_result) = messages.next().await {
+                match msg_result {
+                    Ok(message) => handle_nats_message(message, &state).await,
+                    Err(e) => {
+                        tracing::error!("NATS Subscriber: Message error: {}. Re-subscribing...", e);
+                        break; // Break from while, will retry outer loop
+                    }
+                }
+            }
+            
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
         }
     });
 }

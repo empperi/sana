@@ -29,6 +29,7 @@ dotenvy = "0.15"
 axum-extra = { version = "0.9", features = ["cookie-signed", "cookie"] }
 bcrypt = "0.15"
 dashmap = "6.0"
+anyhow = "1.0"
 
 [dev-dependencies]
 indoc = "2.0"

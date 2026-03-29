@@ -137,7 +137,7 @@ async fn test_resolve_channel_id() {
     
     // 1. Resolve non-existent
     let id = resolve_channel_id(channel_name, &state).await;
-    assert!(id.is_none());
+    assert!(id.is_err());
     
     // 2. Create and resolve
     let channel = sana::db::channels::Channel {
@@ -151,7 +151,7 @@ async fn test_resolve_channel_id() {
     tx.commit().await.unwrap();
     
     let id = resolve_channel_id(channel_name, &state).await;
-    assert_eq!(id, Some(channel.id));
+    assert_eq!(id.unwrap(), channel.id);
 }
 
 #[tokio::test]
@@ -232,5 +232,5 @@ async fn test_process_and_publish_message_basic() {
         "tester",
         channel_name,
         &state
-    ).await;
+    ).await.unwrap();
 }

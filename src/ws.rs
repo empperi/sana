@@ -84,14 +84,24 @@ async fn handle_socket(socket: WebSocket, state: AppState, user_id: Uuid, userna
                                 }
                             }
                             WsAction::PublishToNats(subject, body, message_id, channel_name) => {
-                                 ws_logic::process_and_publish_message(subject, body, message_id, ctx.user_id, &ctx.username, &channel_name, &state).await;
+                                 if let Err(e) = ws_logic::process_and_publish_message(subject, body, message_id, ctx.user_id, &ctx.username, &channel_name, &state).await {
+                                     let error_msg = ws_logic::format_stomp_error(&e.to_string(), None);
+                                     let _ = tx_internal.send(error_msg).await;
+                                 }
                             }
                             WsAction::PublishReadMarker(channel_name, message_id) => {
-                                ws_logic::publish_read_marker(&channel_name, user_id, message_id, &state).await;
+                                if let Err(e) = ws_logic::publish_read_marker(&channel_name, user_id, message_id, &state).await {
+                                    let error_msg = ws_logic::format_stomp_error(&e.to_string(), None);
+                                    let _ = tx_internal.send(error_msg).await;
+                                }
                             }
                             WsAction::SendReceipt(receipt_id) => {
                                 let response = format!("RECEIPT\nreceipt-id:{}\n\n\0", receipt_id);
                                 let _ = tx_internal.send(response).await;
+                            }
+                            WsAction::Error(message, receipt_id) => {
+                                let error_msg = ws_logic::format_stomp_error(&message, receipt_id.as_deref());
+                                let _ = tx_internal.send(error_msg).await;
                             }
                             WsAction::None => {}
                         }

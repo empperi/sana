@@ -2,8 +2,10 @@ use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 const MAX_LIVE_HISTORY: usize = 100;
+const MAX_GLOBAL_HISTORY: usize = 10000;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, sqlx::Type)]
 #[sqlx(type_name = "message_type", rename_all = "PascalCase")]
@@ -70,12 +72,14 @@ impl ChannelEntry {
 pub struct MessageStore {
     // Map of channel_name -> List of entries
     messages: DashMap<String, Vec<ChannelEntry>>,
+    total_count: AtomicUsize,
 }
 
 impl MessageStore {
     pub fn new() -> Self {
         Self {
             messages: DashMap::new(),
+            total_count: AtomicUsize::new(0),
         }
     }
 }
@@ -92,6 +96,11 @@ impl MessageStore {
             return;
         };
 
+        // 1. Check global limit and evict if necessary
+        if self.total_count.load(Ordering::Relaxed) >= MAX_GLOBAL_HISTORY {
+            self.evict_oldest();
+        }
+
         let mut channel_entries = self.messages.entry(channel.to_string()).or_default();
 
         // Idempotency check for entries with IDs
@@ -100,9 +109,34 @@ impl MessageStore {
         }
 
         channel_entries.push(entry);
+        self.total_count.fetch_add(1, Ordering::Relaxed);
 
         if channel_entries.len() > MAX_LIVE_HISTORY {
             channel_entries.remove(0);
+            self.total_count.fetch_sub(1, Ordering::Relaxed);
+        }
+    }
+
+    fn evict_oldest(&self) {
+        // Find channel with most entries
+        let mut largest_channel: Option<String> = None;
+        let mut max_len = 0;
+
+        for r in self.messages.iter() {
+            if r.value().len() > max_len {
+                max_len = r.value().len();
+                largest_channel = Some(r.key().clone());
+            }
+        }
+
+        if let Some(channel_name) = largest_channel {
+            if let Some(mut entries) = self.messages.get_mut(&channel_name) {
+                if !entries.is_empty() {
+                    entries.remove(0);
+                    self.total_count.fetch_sub(1, Ordering::Relaxed);
+                    tracing::warn!("MessageStore: Global limit reached, evicted oldest entry from channel '{}'", channel_name);
+                }
+            }
         }
     }
 

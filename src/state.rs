@@ -6,6 +6,7 @@ use axum_extra::extract::cookie::Key;
 use axum::extract::FromRef;
 use std::sync::Arc;
 use crate::messages::MessageStore;
+use chrono::{DateTime, Utc};
 
 use uuid::Uuid;
 
@@ -17,6 +18,7 @@ pub struct AppState {
     pub jetstream: async_nats::jetstream::Context,
     pub message_store: Arc<MessageStore>,
     pub db_pool: PgPool,
+    pub session_cache: Arc<DashMap<Uuid, DateTime<Utc>>>,
 }
 
 impl AppState {
@@ -28,7 +30,35 @@ impl AppState {
             jetstream,
             message_store: Arc::new(MessageStore::new()),
             db_pool,
+            session_cache: Arc::new(DashMap::new()),
         }
+    }
+
+    pub async fn validate_session(&self, user_id: Uuid) -> bool {
+        // 1. Check cache
+        if let Some(timestamp) = self.session_cache.get(&user_id) {
+            if Utc::now() - *timestamp < chrono::Duration::seconds(60) {
+                return true;
+            }
+        }
+
+        // 2. Check DB
+        let mut tx = match self.db_pool.begin().await {
+            Ok(tx) => tx,
+            Err(_) => return false,
+        };
+
+        match crate::db::users::get_user_by_id(&mut tx, user_id).await {
+            Ok(Some(_)) => {
+                self.session_cache.insert(user_id, Utc::now());
+                true
+            }
+            _ => false,
+        }
+    }
+
+    pub fn invalidate_session(&self, user_id: Uuid) {
+        self.session_cache.remove(&user_id);
     }
 
     pub async fn load_channels_from_db(&self) -> Result<(), sqlx::Error> {

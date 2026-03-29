@@ -34,9 +34,7 @@ where
         if let Some(cookie) = jar.get("session_id") {
             if let Ok(user_id) = Uuid::parse_str(cookie.value()) {
                 let app_state = AppState::from_ref(state);
-                let mut tx = app_state.db_pool.begin().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-                let user_exists = users::get_user_by_id(&mut tx, user_id).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?.is_some();
-                if user_exists {
+                if app_state.validate_session(user_id).await {
                     return Ok(UserSession { user_id });
                 }
             }
@@ -176,12 +174,16 @@ async fn me(
 ) -> Result<Json<AuthResponse>, (StatusCode, Json<ErrorResponse>)> {
     if let Some(cookie) = jar.get("session_id") {
         if let Ok(user_id) = Uuid::parse_str(cookie.value()) {
-            let mut tx = state.db_pool.begin().await.map_err(internal_error)?;
-            if let Ok(Some(user)) = users::get_user_by_id(&mut tx, user_id).await {
-                return Ok(Json(AuthResponse {
-                    user_id: user.id,
-                    username: user.username,
-                }));
+            if state.validate_session(user_id).await {
+                // We still need the username for the response, but now this only happens 
+                // for the /me endpoint, not every UserSession extraction
+                let mut tx = state.db_pool.begin().await.map_err(internal_error)?;
+                if let Ok(Some(user)) = users::get_user_by_id(&mut tx, user_id).await {
+                    return Ok(Json(AuthResponse {
+                        user_id: user.id,
+                        username: user.username,
+                    }));
+                }
             }
         }
     }
@@ -192,7 +194,16 @@ async fn me(
     ))
 }
 
-async fn logout(jar: SignedCookieJar) -> impl IntoResponse {
+async fn logout(
+    State(state): State<AppState>,
+    jar: SignedCookieJar,
+) -> impl IntoResponse {
+    if let Some(cookie) = jar.get("session_id") {
+        if let Ok(user_id) = Uuid::parse_str(cookie.value()) {
+            state.invalidate_session(user_id);
+        }
+    }
+
     let mut cookie = Cookie::from("session_id");
     cookie.set_path("/");
     jar.remove(cookie)

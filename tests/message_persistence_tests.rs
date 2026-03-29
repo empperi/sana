@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 #[path = "db/common.rs"]
 mod common;
-use common::{TestContext, create_test_user, create_test_channel};
+use common::{TestContext, create_test_user, create_test_channel, join_test_channel};
 
 async fn setup_app(ctx: &TestContext, key: Key) -> (axum::Router, AppState) {
     let config = Config::load(None);
@@ -56,11 +56,12 @@ async fn test_message_persistence_to_db() {
 
     let user = create_test_user(&ctx.pool, "p_user").await;
     let channel = create_test_channel(&ctx.pool, "p_chan").await;
+    join_test_channel(&ctx.pool, user.id, channel.id).await;
     let cookie = auth_header(user.id, key);
 
     // 1. Publish a message to NATS via the logic function
     let subject = format!("topic.{}", sana::nats_util::encode(&channel.name));
-    sana::logic::ws_logic::process_and_publish_message(
+    let _ = sana::logic::ws_logic::process_and_publish_message(
         subject,
         "Persistent Message".to_string(),
         None, // random message ID

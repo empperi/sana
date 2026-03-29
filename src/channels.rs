@@ -84,7 +84,9 @@ async fn create_channel(
 
     // 3. Side effect: NATS notification for the new channel
     if let Ok(json) = serde_json::to_string(&channel) {
-        let _ = state.nats_client.publish("topic.system.channels", bytes::Bytes::from(json)).await;
+        if let Err(e) = state.nats_client.publish("topic.system.channels", bytes::Bytes::from(json)).await {
+            tracing::error!("Failed to publish new channel to NATS: {}", e);
+        }
     }
 
     Ok((StatusCode::CREATED, Json(channel)))
@@ -138,14 +140,16 @@ async fn join_channel(
     };
 
     if let Ok(json) = serde_json::to_string(&join_event) {
-        let _ = state.nats_client.publish(subject, bytes::Bytes::from(json)).await;
+        if let Err(e) = state.nats_client.publish(subject, bytes::Bytes::from(json)).await {
+            tracing::error!("Failed to publish join event to NATS: {}", e);
+        }
     }
 
     Ok(StatusCode::OK)
 }
 
 async fn get_channel_messages(
-    _session: UserSession,
+    session: UserSession,
     State(state): State<AppState>,
     axum::extract::Path(channel_id): axum::extract::Path<Uuid>,
     Query(query): Query<MessagesQuery>,
@@ -155,6 +159,18 @@ async fn get_channel_messages(
     }
 
     let mut tx = state.db_pool.begin().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    // Check membership
+    let is_member = channels::is_channel_member(&mut tx, session.user_id, channel_id).await
+        .map_err(|e| {
+            tracing::error!("Failed to check channel membership: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    if !is_member {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
     let messages = crate::db::messages::get_messages(&mut tx, channel_id, query.limit, query.before, false)
         .await
         .map_err(|e| {

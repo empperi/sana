@@ -1,3 +1,4 @@
+use anyhow::Context;
 use std::net::SocketAddr;
 use std::env;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -9,7 +10,7 @@ use uuid::Uuid;
 use axum_extra::extract::cookie::Key;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     // Load .env if present
     let _ = dotenvy::dotenv();
 
@@ -27,7 +28,9 @@ async fn main() {
 
     // Connect to NATS
     tracing::info!("Connecting to NATS at {}...", config.nats_url);
-    let nats_client = async_nats::connect(&config.nats_url).await.unwrap();
+    let nats_client = async_nats::connect(&config.nats_url)
+        .await
+        .context("Failed to connect to NATS")?;
     tracing::info!("Connected to NATS");
     
     let jetstream = async_nats::jetstream::new(nats_client.clone());
@@ -40,7 +43,9 @@ async fn main() {
         ..Default::default()
     };
     
-    let _ = jetstream.get_or_create_stream(stream_config).await.unwrap();
+    let _ = jetstream.get_or_create_stream(stream_config)
+        .await
+        .context("Failed to initialize JetStream")?;
     tracing::info!("JetStream initialized");
 
     // Connect to Database
@@ -58,23 +63,32 @@ async fn main() {
             }
         }
     }
-    let db_pool = db_pool.expect("Failed to connect to database after retries");
-    db::run_migrations(&db_pool).await.expect("Failed to run database migrations");
+    let db_pool = db_pool.context("Failed to connect to database after retries")?;
+    db::run_migrations(&db_pool)
+        .await
+        .context("Failed to run database migrations")?;
     
     if db::check_connection(&db_pool).await.unwrap_or(false) {
         tracing::info!("Successfully connected to database and ran migrations");
         
         // Ensure General channel exists
-        let mut tx = db_pool.begin().await.unwrap();
-        let general_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+        let mut tx = db_pool.begin()
+            .await
+            .context("Failed to begin transaction for General channel")?;
+        let general_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001")
+            .context("Invalid General channel UUID")?;
         let general_channel = sana::db::channels::Channel {
             id: general_id,
             name: "General".to_string(),
             is_private: false,
             created_at: chrono::Utc::now(),
         };
-        sana::db::channels::insert_channel(&mut tx, &general_channel).await.unwrap();
-        tx.commit().await.unwrap();
+        sana::db::channels::insert_channel(&mut tx, &general_channel)
+            .await
+            .context("Failed to insert General channel")?;
+        tx.commit()
+            .await
+            .context("Failed to commit General channel transaction")?;
     }
 
     let cookie_key = match env::var("COOKIE_KEY") {
@@ -95,7 +109,9 @@ async fn main() {
     };
 
     let app_state = AppState::new(nats_client.clone(), jetstream, db_pool);
-    app_state.load_channels_from_db().await.expect("Failed to load channels from database");
+    app_state.load_channels_from_db()
+        .await
+        .context("Failed to load channels from database")?;
 
     let combined_state = CombinedState {
         app: app_state.clone(),
@@ -110,6 +126,12 @@ async fn main() {
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     tracing::debug!("listening on {}", addr);
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .context("Failed to bind to port 3000")?;
+    axum::serve(listener, app)
+        .await
+        .context("Failed to start axum server")?;
+
+    Ok(())
 }

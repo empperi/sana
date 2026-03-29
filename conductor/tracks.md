@@ -4,7 +4,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Error Handling & Resilience**
+- [~] **Track: Error Handling & Resilience**
   *Link: [./tracks/error_handling_resilience_20260328/](./tracks/error_handling_resilience_20260328/)*
 
 ---
