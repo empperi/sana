@@ -9,12 +9,12 @@
 - [x] Task: Add global memory limit to `MessageStore`
 - [x] Task: Conductor - User Manual Verification 'Backend Resilience' (Protocol in workflow.md)
 
-## Phase 2: Frontend Resilience
+## Phase 2: Frontend Resilience [checkpoint: d97c2cd]
 - [x] Task: Cap WebSocket reconnection retries with exponential backoff
 - [x] Task: Add timeouts to frontend HTTP requests
 - [x] Task: Conductor - User Manual Verification 'Frontend Resilience' (Protocol in workflow.md)
 
-## Phase 3: Final System-Wide Validation
-- [ ] Task: Run full test suite (`cargo test` in backend and frontend)
-- [ ] Task: Final manual end-to-end verification (stop NATS/DB, verify resilience)
-- [ ] Task: Conductor - User Manual Verification 'Final System-Wide Validation' (Protocol in workflow.md)
+## Phase 3: Final System-Wide Validation [checkpoint: d97c2cd]
+- [x] Task: Run full test suite (`cargo test` in backend and frontend)
+- [x] Task: Final manual end-to-end verification (stop NATS/DB, verify resilience)
+- [x] Task: Conductor - User Manual Verification 'Final System-Wide Validation' (Protocol in workflow.md)
