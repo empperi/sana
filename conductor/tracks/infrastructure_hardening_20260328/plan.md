@@ -15,7 +15,7 @@
 - [x] Task: Conductor - User Manual Verification 'Health & Config' (Protocol in workflow.md)
 
 ## Phase 3: Final System-Wide Validation
-- [ ] Task: Run full stack with `docker-compose up --build -d` and verify health status
-- [ ] Task: Verify static asset headers and gzip using `curl -I`
-- [ ] Task: Verify data persistence by restarting the stack
-- [ ] Task: Conductor - User Manual Verification 'Final System-Wide Validation' (Protocol in workflow.md)
+- [x] Task: Run full stack with `docker-compose up --build -d` and verify health status
+- [x] Task: Verify static asset headers and gzip using `curl -I`
+- [x] Task: Verify data persistence by restarting the stack
+- [x] Task: Conductor - User Manual Verification 'Final System-Wide Validation' (Protocol in workflow.md)
