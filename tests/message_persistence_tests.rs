@@ -32,6 +32,7 @@ async fn setup_app(ctx: &TestContext, key: Key) -> (axum::Router, AppState) {
     let combined_state = CombinedState {
         app: app_state.clone(),
         cookie_key: key,
+        config,
     };
     
     // Start archiver with a unique durable name for this test to avoid conflicts

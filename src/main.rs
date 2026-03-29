@@ -116,6 +116,7 @@ async fn main() -> anyhow::Result<()> {
     let combined_state = CombinedState {
         app: app_state.clone(),
         cookie_key,
+        config: config.clone(),
     };
 
     // Start background tasks

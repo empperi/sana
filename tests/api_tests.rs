@@ -25,6 +25,7 @@ async fn test_get_channels_unauthorized() {
     let combined_state = CombinedState {
         app: app_state,
         cookie_key: Key::generate(),
+        config,
     };
     let app = create_router(combined_state);
 
@@ -48,6 +49,7 @@ async fn test_get_channels_authorized() {
     let combined_state = CombinedState {
         app: app_state,
         cookie_key: key.clone(),
+        config,
     };
     let app = create_router(combined_state);
 
@@ -94,6 +96,7 @@ async fn test_search_unjoined_channels() {
     let combined_state = CombinedState {
         app: app_state,
         cookie_key: key.clone(),
+        config,
     };
     let app = create_router(combined_state);
 
@@ -138,6 +141,7 @@ async fn test_join_channel_api() {
     let combined_state = CombinedState {
         app: app_state,
         cookie_key: key.clone(),
+        config,
     };
     let app = create_router(combined_state);
 
@@ -188,6 +192,7 @@ async fn test_create_channel_api() {
     let combined_state = CombinedState {
         app: app_state,
         cookie_key: key.clone(),
+        config,
     };
     let app = create_router(combined_state);
 
@@ -222,4 +227,29 @@ async fn test_create_channel_api() {
     // Verify channel exists AND user has joined
     let joined = db::channels::get_user_channels(&ctx.pool, user.id).await.unwrap();
     assert!(joined.iter().any(|c| c.name == "brand-new-channel"), "Creator should be automatically joined to the channel");
+}
+
+#[tokio::test]
+async fn test_health_endpoint() {
+    let ctx = TestContext::new("sana_test_api_health").await;
+    let config = Config::load(None);
+    let nats_client = async_nats::connect(&config.nats_url).await.unwrap();
+    let jetstream = async_nats::jetstream::new(nats_client.clone());
+
+    let app_state = AppState::new(nats_client, jetstream, ctx.pool.clone());
+    let combined_state = CombinedState {
+        app: app_state,
+        cookie_key: Key::generate(),
+        config,
+    };
+    let app = create_router(combined_state);
+
+    let response: Response = app
+        .oneshot(Request::builder().uri("/health").body(axum::body::Body::empty()).unwrap())
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(body, "OK");
 }

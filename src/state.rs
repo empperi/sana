@@ -86,6 +86,7 @@ impl AppState {
 pub struct CombinedState {
     pub app: AppState,
     pub cookie_key: Key,
+    pub config: crate::config::Config,
 }
 
 impl FromRef<CombinedState> for AppState {

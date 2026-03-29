@@ -4,6 +4,21 @@ use std::io::Write;
 use tempfile::NamedTempFile;
 
 #[test]
+fn test_cors_origin_default() {
+    env::remove_var("CORS_ORIGIN");
+    let config = Config::load(None);
+    assert_eq!(config.cors_origin, "http://localhost:8080");
+}
+
+#[test]
+fn test_cors_origin_from_env() {
+    env::set_var("CORS_ORIGIN", "https://example.com");
+    let config = Config::load(None);
+    assert_eq!(config.cors_origin, "https://example.com");
+    env::remove_var("CORS_ORIGIN");
+}
+
+#[test]
 fn test_config_loading() {
     // 1. Test Defaults
     {

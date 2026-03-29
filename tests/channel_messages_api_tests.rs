@@ -106,7 +106,7 @@ async fn setup_app(ctx: &TestContext, key: Key) -> axum::Router {
     let nats_client = async_nats::connect(&config.nats_url).await.unwrap();
     let jetstream = async_nats::jetstream::new(nats_client.clone());
     let app_state = AppState::new(nats_client, jetstream, ctx.pool.clone());
-    create_router(CombinedState { app: app_state, cookie_key: key })
+    create_router(CombinedState { app: app_state, cookie_key: key, config })
 }
 
 fn auth_header(user_id: Uuid, key: Key) -> String {
