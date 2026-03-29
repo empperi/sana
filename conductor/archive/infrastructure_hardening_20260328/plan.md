@@ -14,7 +14,7 @@
 - [x] Task: Make CORS origin configurable in `src/config.rs` and `src/router.rs`
 - [x] Task: Conductor - User Manual Verification 'Health & Config' (Protocol in workflow.md)
 
-## Phase 3: Final System-Wide Validation
+## Phase 3: Final System-Wide Validation [checkpoint: cff3625]
 - [x] Task: Run full stack with `docker-compose up --build -d` and verify health status
 - [x] Task: Verify static asset headers and gzip using `curl -I`
 - [x] Task: Verify data persistence by restarting the stack

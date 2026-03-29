@@ -1,4 +1,4 @@
-# Track: Error Handling & Resilience
+# Track: Infrastructure Hardening
 
 - [Specification](./spec.md)
 - [Implementation Plan](./plan.md)
