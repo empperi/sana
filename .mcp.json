@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "code-indexer": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "compose",
+        "run",
+        "-T",
+        "--quiet-pull",
+        "--rm",
+        "indexer"
+      ],
+      "env": {}
+    }
+  }
+}
