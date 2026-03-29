@@ -5,6 +5,8 @@ use gloo_net::http::Request;
 use yew_router::prelude::*;
 use crate::Route;
 use web_sys::RequestCredentials;
+use gloo_timers::future::TimeoutFuture;
+use futures::FutureExt;
 
 #[derive(Properties, PartialEq)]
 pub struct ProfileMenuProps {
@@ -51,10 +53,17 @@ pub fn profile_menu(props: &ProfileMenuProps) -> Html {
             let is_open = is_open.clone();
             let navigator = navigator.clone();
             wasm_bindgen_futures::spawn_local(async move {
-                let _ = Request::post(&crate::get_api_url("/api/auth/logout"))
+                let request_fut = Request::post(&crate::get_api_url("/api/auth/logout"))
                     .credentials(RequestCredentials::Include)
-                    .send()
-                    .await;
+                    .send();
+
+                let _ = futures::select! {
+                    r = request_fut.fuse() => r,
+                    _ = TimeoutFuture::new(10000).fuse() => {
+                        gloo_console::error!("Logout request timed out");
+                        Err(gloo_net::Error::GlooError("Timeout".to_string()))
+                    }
+                };
                 
                 is_open.set(false);
                 navigator.push(&Route::Login);

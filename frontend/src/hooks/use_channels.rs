@@ -2,13 +2,18 @@ use yew::prelude::*;
 use gloo_net::http::Request;
 use web_sys::RequestCredentials;
 use crate::state::{ChatStateContext, ChatAction};
+use gloo_timers::future::TimeoutFuture;
+use futures::FutureExt;
 
 async fn fetch_channels() -> Result<Vec<crate::types::Channel>, String> {
-    let response = Request::get("/api/channels")
+    let request_fut = Request::get("/api/channels")
         .credentials(RequestCredentials::Include)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
+        .send();
+
+    let response = futures::select! {
+        resp = request_fut.fuse() => resp.map_err(|e| e.to_string())?,
+        _ = TimeoutFuture::new(10000).fuse() => return Err("Request timed out".to_string()),
+    };
 
     if response.status() == 200 {
         response.json::<Vec<crate::types::Channel>>().await.map_err(|e| e.to_string())

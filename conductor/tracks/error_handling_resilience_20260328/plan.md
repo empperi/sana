@@ -1,6 +1,6 @@
 # Implementation Plan: Error Handling & Resilience
 
-## Phase 1: Backend Resilience
+## Phase 1: Backend Resilience [checkpoint: 3b9df6c]
 - [x] Task: Add `anyhow` dependency, fix `main.rs` startup error handling
 - [x] Task: Add channel membership check in `get_channel_messages()`
 - [x] Task: Implement session cache with TTL in `auth.rs`
@@ -10,9 +10,9 @@
 - [x] Task: Conductor - User Manual Verification 'Backend Resilience' (Protocol in workflow.md)
 
 ## Phase 2: Frontend Resilience
-- [ ] Task: Cap WebSocket reconnection retries with exponential backoff
-- [ ] Task: Add timeouts to frontend HTTP requests
-- [ ] Task: Conductor - User Manual Verification 'Frontend Resilience' (Protocol in workflow.md)
+- [x] Task: Cap WebSocket reconnection retries with exponential backoff
+- [x] Task: Add timeouts to frontend HTTP requests
+- [x] Task: Conductor - User Manual Verification 'Frontend Resilience' (Protocol in workflow.md)
 
 ## Phase 3: Final System-Wide Validation
 - [ ] Task: Run full test suite (`cargo test` in backend and frontend)

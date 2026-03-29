@@ -59,47 +59,74 @@ impl WebSocketService {
             let host = location.host().unwrap();
             let ws_url = format!("{}//{}/ws", protocol, host);
             
+            let mut attempts = 0;
+            const MAX_ATTEMPTS: u32 = 20;
+            
             loop {
                 // Check if we should stop before trying to connect
                 if stop_rx.try_recv().is_ok() { break; }
 
+                if attempts >= MAX_ATTEMPTS {
+                    web_sys::console::error_1(&format!("WebSocket: Maximum reconnection attempts ({}) reached. Stopping.", MAX_ATTEMPTS).into());
+                    on_status_change.emit(ConnectionStatus::Disconnected);
+                    
+                    // Wait for manual stop or just hang until component unmounts
+                    while stop_rx.next().await.is_none() {
+                        TimeoutFuture::new(1000).await;
+                    }
+                    break;
+                }
+
                 on_status_change.emit(ConnectionStatus::Reconnecting);
+                let mut connection_result = false;
+                let mut connection_stopped = false;
+
                 if let Ok(ws) = WebSocket::open(&ws_url) {
                     let (write, read) = ws.split();
                     
-                    let mut connection_stopped = false;
                     futures::select! {
-                        _ = Self::connection_loop(
+                        res = Self::connection_loop(
                             write, read, &mut rx, outgoing_buffer_clone.clone(),
                             &on_message, &on_system_message, &on_connected, &on_status_change
-                        ).fuse() => {},
+                        ).fuse() => {
+                            connection_result = res;
+                        },
                         _ = stop_rx.next() => {
                             connection_stopped = true;
                         }
                     }
-                    if connection_stopped { break; }
                 }
                 
-                on_status_change.emit(ConnectionStatus::Disconnected);
-                
-                // Wait 2s or stop
-                let mut timer = TimeoutFuture::new(2000).fuse();
-                let mut stopped = false;
-                loop {
-                    futures::select! {
-                        _ = timer => break,
-                        _ = stop_rx.next() => {
-                            stopped = true;
-                            break;
-                        }
-                        out_msg = rx.next() => {
-                            if let Some(text) = out_msg {
-                                outgoing_buffer_clone.borrow_mut().push(text);
+                if connection_stopped { break; }
+
+                if connection_result {
+                    attempts = 0;
+                } else {
+                    on_status_change.emit(ConnectionStatus::Disconnected);
+                    attempts += 1;
+                    let backoff_ms = (2u32.pow(attempts.min(4)) * 1000).min(30000); // 2s, 4s, 8s, 16s, 30s, 30s...
+                    
+                    web_sys::console::debug_1(&format!("WebSocket: Reconnection attempt {} failed. Retrying in {}ms...", attempts, backoff_ms).into());
+
+                    // Wait backoff or stop
+                    let mut timer = TimeoutFuture::new(backoff_ms).fuse();
+                    let mut stopped = false;
+                    loop {
+                        futures::select! {
+                            _ = timer => break,
+                            _ = stop_rx.next() => {
+                                stopped = true;
+                                break;
+                            }
+                            out_msg = rx.next() => {
+                                if let Some(text) = out_msg {
+                                    outgoing_buffer_clone.borrow_mut().push(text);
+                                }
                             }
                         }
                     }
+                    if stopped { break; }
                 }
-                if stopped { break; }
             }
         });
 
@@ -122,26 +149,27 @@ impl WebSocketService {
         on_system_message: &SysMsgCallback,
         on_connected: &ConnectedCallback,
         on_status_change: &StatusCallback,
-    ) where 
+    ) -> bool where 
         W: Sink<Message, Error = WebSocketError> + Unpin,
         R: Stream<Item = Result<Message, WebSocketError>> + Unpin,
     {
         let mut read = read.fuse();
-        if write.send(Message::Text(stomp::create_connect_frame())).await.is_err() { return; }
+        if write.send(Message::Text(stomp::create_connect_frame())).await.is_err() { return false; }
 
         if let Some((username, user_id)) = Self::wait_for_stomp_connected(&mut read, on_message, on_system_message, on_connected, on_status_change).await {
             on_status_change.emit(ConnectionStatus::Connected);
             on_connected.emit((username, user_id));
         } else {
-            return;
+            return false;
         }
 
-        if Self::sync_subscriptions(&mut write, &mut read, rx, outgoing_buffer.clone(), on_message, on_system_message, on_connected, on_status_change).await.is_err() { return; }
+        if Self::sync_subscriptions(&mut write, &mut read, rx, outgoing_buffer.clone(), on_message, on_system_message, on_connected, on_status_change).await.is_err() { return true; }
         
         TimeoutFuture::new(500).await;
-        if Self::flush_outgoing_buffer(&mut write, outgoing_buffer.clone()).await.is_err() { return; }
+        if Self::flush_outgoing_buffer(&mut write, outgoing_buffer.clone()).await.is_err() { return true; }
 
         Self::main_message_loop(write, read, rx, outgoing_buffer, on_message, on_system_message, on_connected, on_status_change).await;
+        true
     }
 
     async fn wait_for_stomp_connected<R>(
