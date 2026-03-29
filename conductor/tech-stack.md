@@ -9,6 +9,7 @@
 - **async-nats:** The client library for interacting with NATS JetStream for high-performance messaging.
 - **Tokio:** The underlying asynchronous runtime for high-throughput and low-latency networking.
 - **DashMap:** Used for efficient, concurrent in-memory state management (channels and message store) without global lock contention.
+- **anyhow:** Used for flexible and ergonomic error handling during system startup and high-level operations.
 
 ## Frontend Architecture
 - **Yew:** The WebAssembly framework used for building a fast and responsive user interface in Rust.

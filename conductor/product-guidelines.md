@@ -16,4 +16,6 @@ The core UX principle for Sana is **Speed & Responsiveness**.
 Our approach to error handling is **Silent & Seamless**.
 - **Minimize Disruption:** The app should handle minor errors and temporary connection issues gracefully in the background without interrupting the user's flow.
 - **Proactive Recovery:** Implement automatic retries and fallback mechanisms to resolve issues silently.
+- **Resilient Reconnection:** Use capped exponential backoff for network reconnections to ensure system stability during extended outages.
+- **Explicit Timeouts:** Implement strict timeouts for all network operations to prevent UI hangs and provide predictable failure states.
 - **Minimal Notifications:** Only notify the user of critical errors that require their direct intervention, using clear and helpful language.
