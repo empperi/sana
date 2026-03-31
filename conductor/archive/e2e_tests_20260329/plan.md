@@ -43,7 +43,7 @@ Automate real-time communication flows involving multi-user interactions.
     - [x] Each test that writes data must clean up after itself or use uniquely-scoped test data (e.g. unique usernames per test run) to ensure isolation.
 - [x] Task: Conductor - User Manual Verification 'Phase 3: Messaging and Channel Interactions' (Protocol in workflow.md)
 
-## Phase 4: CI Integration & Finalization
+## Phase 4: CI Integration & Finalization [checkpoint: 46738a3]
 Integrate the suite into the automation pipeline and finalize documentation.
 
 - [x] Task: Integrate E2E suite into GitHub Actions.
