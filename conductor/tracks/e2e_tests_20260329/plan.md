@@ -1,6 +1,6 @@
 # Implementation Plan: End-to-end Tests
 
-## Phase 1: Environment Setup & Infrastructure
+## Phase 1: Environment Setup & Infrastructure [checkpoint: dfe509c]
 Setup the foundations for E2E testing, including directory structure and Docker orchestration.
 
 - [x] Task: Update `tech-stack.md` to document Playwright and Node.js as E2E testing dependencies (required by workflow before introducing new tech).
@@ -22,26 +22,26 @@ Setup the foundations for E2E testing, including directory structure and Docker 
 ## Phase 2: Authentication Flows
 Automate the core identity and session management flows.
 
-- [ ] Task: Implement User Registration test.
-    - [ ] Automate the signup form submission.
-    - [ ] Verify successful registration and redirection.
-- [ ] Task: Implement User Login/Logout test.
-    - [ ] Automate the login process.
-    - [ ] Verify session persistence across page reloads.
-    - [ ] Automate the logout process and verify session termination.
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Authentication Flows' (Protocol in workflow.md)
+- [x] Task: Implement User Registration test.
+    - [x] Automate the signup form submission.
+    - [x] Verify successful registration and redirection.
+- [x] Task: Implement User Login/Logout test.
+    - [x] Automate the login process.
+    - [x] Verify session persistence across page reloads.
+    - [x] Automate the logout process and verify session termination.
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Authentication Flows' (Protocol in workflow.md)
 
 ## Phase 3: Messaging and Channel Interactions
 Automate real-time communication flows involving multi-user interactions.
 
-- [ ] Task: Implement Channel Management tests.
-    - [ ] Verify user can view public channels.
-    - [ ] Verify user can join a public channel.
-- [ ] Task: Implement Real-time Messaging test.
-    - [ ] Setup multi-browser context in Playwright (2 separate browser sessions, each authenticated as a different user).
-    - [ ] Verify user A can send a message and user B receives it in real-time.
-    - [ ] Each test that writes data must clean up after itself or use uniquely-scoped test data (e.g. unique usernames per test run) to ensure isolation.
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Messaging and Channel Interactions' (Protocol in workflow.md)
+- [x] Task: Implement Channel Management tests.
+    - [x] Verify user can view public channels.
+    - [x] Verify user can join a public channel.
+- [x] Task: Implement Real-time Messaging test.
+    - [x] Setup multi-browser context in Playwright (2 separate browser sessions, each authenticated as a different user).
+    - [x] Verify user A can send a message and user B receives it in real-time.
+    - [x] Each test that writes data must clean up after itself or use uniquely-scoped test data (e.g. unique usernames per test run) to ensure isolation.
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Messaging and Channel Interactions' (Protocol in workflow.md)
 
 ## Phase 4: CI Integration & Finalization
 Integrate the suite into the automation pipeline and finalize documentation.
