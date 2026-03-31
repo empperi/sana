@@ -188,3 +188,16 @@ Follow the TDD approach as specified in `AGENTS.md`.
 
 - Run backend tests: `cargo test`
 - Run frontend tests: `cargo test --manifest-path frontend/Cargo.toml`
+- Run E2E tests:
+  ```bash
+  # Setup
+  cd e2e && npm install && npx playwright install chromium && cd ..
+  
+  # Execute
+  export COOKIE_KEY=$(node -e "console.log(require('crypto').randomBytes(64).toString('hex'))")
+  docker compose -f docker-compose.e2e.yml --project-name sana-e2e up --build --wait
+  cd e2e && npx playwright test --project=chromium
+  
+  # Cleanup
+  docker compose -f docker-compose.e2e.yml --project-name sana-e2e down
+  ```

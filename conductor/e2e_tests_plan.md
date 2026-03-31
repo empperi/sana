@@ -31,7 +31,7 @@ Automate the core identity and session management flows.
     - [x] Automate the logout process and verify session termination.
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Authentication Flows' (Protocol in workflow.md)
 
-## Phase 3: Messaging and Channel Interactions
+## Phase 3: Messaging and Channel Interactions [checkpoint: 153dd34]
 Automate real-time communication flows involving multi-user interactions.
 
 - [x] Task: Implement Channel Management tests.
@@ -46,14 +46,14 @@ Automate real-time communication flows involving multi-user interactions.
 ## Phase 4: CI Integration & Finalization
 Integrate the suite into the automation pipeline and finalize documentation.
 
-- [ ] Task: Integrate E2E suite into GitHub Actions.
-    - [ ] Add a new `e2e` job in `.github/workflows/ci.yml` (separate from the existing `test` job; different requirements: Docker Compose, Node.js).
-    - [ ] Include steps: checkout, generate `COOKIE_KEY`, `docker compose --project-name e2e up --wait`, run Playwright, `docker compose down`.
-    - [ ] Configure cache for Node.js dependencies and Playwright browsers.
-    - [ ] Always run `docker compose --project-name e2e down` in a `if: always()` step to avoid leaked containers on failure.
-- [ ] Task: Implement Artifact Capture.
-    - [ ] Configure Playwright to capture screenshots/videos/traces on test failure.
-    - [ ] Ensure artifacts are uploaded to GitHub Actions.
-- [ ] Task: Finalize Documentation.
-    - [ ] Add instructions to `README.md` or a dedicated doc for running E2E tests locally.
+- [x] Task: Integrate E2E suite into GitHub Actions.
+    - [x] Add a new `e2e` job in `.github/workflows/ci.yml` (separate from the existing `test` job; different requirements: Docker Compose, Node.js).
+    - [x] Include steps: checkout, generate `COOKIE_KEY`, `docker compose --project-name e2e up --wait`, run Playwright, `docker compose down`.
+    - [x] Configure cache for Node.js dependencies and Playwright browsers.
+    - [x] Always run `docker compose --project-name e2e down` in a `if: always()` step to avoid leaked containers on failure.
+- [x] Task: Implement Artifact Capture.
+    - [x] Configure Playwright to capture screenshots/videos/traces on test failure.
+    - [x] Ensure artifacts are uploaded to GitHub Actions.
+- [x] Task: Finalize Documentation.
+    - [x] Add instructions to `README.md` or a dedicated doc for running E2E tests locally.
 - [ ] Task: Conductor - User Manual Verification 'Phase 4: CI Integration & Finalization' (Protocol in workflow.md)

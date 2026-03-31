@@ -45,3 +45,47 @@ jobs:
 
       - name: Run all tests
         run: cargo test --workspace
+
+  e2e:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Install dependencies
+        working-directory: e2e
+        run: npm ci
+
+      - name: Install Playwright Browsers
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Generate COOKIE_KEY
+        run: echo "COOKIE_KEY=$(node -e "console.log(require('crypto').randomBytes(64).toString('hex'))")" >> $GITHUB_ENV
+
+      - name: Start Docker Stack
+        run: docker compose -f docker-compose.e2e.yml --project-name sana-e2e up --build --wait --timeout 600
+
+      - name: Run Playwright tests
+        working-directory: e2e
+        run: npx playwright test --project=chromium --reporter=github
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 30
+
+      - name: Stop Docker Stack
+        if: always()
+        run: docker compose -f docker-compose.e2e.yml --project-name sana-e2e down
