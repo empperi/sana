@@ -132,11 +132,11 @@ pub fn join_channel_modal(props: &JoinChannelModalProps) -> Html {
     }
 
     html! {
-        <div class="modal-overlay" onclick={let on_close = props.on_close.clone(); move |_| on_close.emit(())}>
-            <div class="modal-content" onclick={|e: MouseEvent| e.stop_propagation()}>
+        <div class="modal-overlay" data-testid="modal-overlay" onclick={let on_close = props.on_close.clone(); move |_| on_close.emit(())}>
+            <div class="modal-content" data-testid="modal-content" onclick={|e: MouseEvent| e.stop_propagation()}>
                 <header class="modal-header">
                     <h2>{ "Channels" }</h2>
-                    <button class="close-button" onclick={let on_close = props.on_close.clone(); move |_| on_close.emit(())}>{ "×" }</button>
+                    <button class="close-button" data-testid="close-modal-button" onclick={let on_close = props.on_close.clone(); move |_| on_close.emit(())}>{ "×" }</button>
                 </header>
                 
                 <div class="modal-body">
@@ -146,11 +146,12 @@ pub fn join_channel_modal(props: &JoinChannelModalProps) -> Html {
                             <input 
                                 type="text" 
                                 ref={create_input_ref}
+                                data-testid="new-channel-input"
                                 placeholder="New channel name..." 
                                 value={(*new_channel_name).clone()}
                                 oninput={on_create_input}
                             />
-                            <button type="submit" disabled={new_channel_name.is_empty()}>{ "Create" }</button>
+                            <button type="submit" data-testid="create-channel-button" disabled={new_channel_name.is_empty()}>{ "Create" }</button>
                         </form>
                     </section>
 
@@ -161,6 +162,7 @@ pub fn join_channel_modal(props: &JoinChannelModalProps) -> Html {
                         <input 
                             type="text" 
                             ref={search_input_ref}
+                            data-testid="search-channels-input"
                             placeholder="Search channels..." 
                             class="search-input"
                             value={(*search_query).clone()}
@@ -172,16 +174,16 @@ pub fn join_channel_modal(props: &JoinChannelModalProps) -> Html {
                         } else if let Some(err) = &*error {
                             <div class="modal-error">{ err }</div>
                         } else if channels.is_empty() {
-                            <div class="modal-message">{ "No unjoined channels found" }</div>
+                            <div class="modal-message" data-testid="no-channels-found">{ "No unjoined channels found" }</div>
                         } else {
-                            <ul class="unjoined-channel-list">
+                            <ul class="unjoined-channel-list" data-testid="unjoined-channel-list">
                                 { for channels.iter().map(|channel| {
                                     let channel_clone = channel.clone();
                                     let on_join = props.on_join.clone();
                                     html! {
-                                        <li key={channel.id.to_string()}>
+                                        <li key={channel.id.to_string()} data-testid="unjoined-channel-item">
                                             <span class="channel-name">{ format!("# {}", channel.name) }</span>
-                                            <button class="join-button" onclick={move |_| on_join.emit(channel_clone.clone())}>
+                                            <button class="join-button" data-testid="join-channel-button" onclick={move |_| on_join.emit(channel_clone.clone())}>
                                                 { "Join" }
                                             </button>
                                         </li>

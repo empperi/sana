@@ -16,45 +16,45 @@ test.describe('Real-time Messaging', () => {
 
     // 1. User A registers and creates a channel
     await pageA.goto('/register');
-    await pageA.getByPlaceholder('Choose a Username').fill(userA);
-    await pageA.getByPlaceholder('Choose a Password').fill('Password123!');
-    await pageA.getByRole('button', { name: 'Register' }).click();
+    await pageA.getByTestId('username-input').fill(userA);
+    await pageA.getByTestId('password-input').fill('Password123!');
+    await pageA.getByTestId('auth-submit').click();
     await expect(pageA).toHaveURL(/\/$/);
     
-    await pageA.locator('.create-button').click();
-    await pageA.getByPlaceholder('New channel name...').fill(channelName);
-    await pageA.getByRole('button', { name: 'Create' }).click();
-    await expect(pageA.locator('.chat-container header h1')).toContainText(`# ${channelName}`);
+    await pageA.getByTestId('open-create-channel-modal').click();
+    await pageA.getByTestId('new-channel-input').fill(channelName);
+    await pageA.getByTestId('create-channel-button').click();
+    await expect(pageA.getByTestId('chat-header')).toContainText(`# ${channelName}`);
 
     // 2. User B registers and joins the same channel
     await pageB.goto('/register');
-    await pageB.getByPlaceholder('Choose a Username').fill(userB);
-    await pageB.getByPlaceholder('Choose a Password').fill('Password123!');
-    await pageB.getByRole('button', { name: 'Register' }).click();
+    await pageB.getByTestId('username-input').fill(userB);
+    await pageB.getByTestId('password-input').fill('Password123!');
+    await pageB.getByTestId('auth-submit').click();
     await expect(pageB).toHaveURL(/\/$/);
     
-    await pageB.locator('.browse-button').click();
-    await pageB.getByPlaceholder('Search channels...').fill(channelName);
-    await pageB.getByRole('button', { name: 'Join' }).click();
-    await expect(pageB.locator('.chat-container header h1')).toContainText(`# ${channelName}`);
+    await pageB.getByTestId('browse-channels-button').click();
+    await pageB.getByTestId('search-channels-input').fill(channelName);
+    await pageB.getByTestId('join-channel-button').click();
+    await expect(pageB.getByTestId('chat-header')).toContainText(`# ${channelName}`);
 
     // 3. User A sends a message
     const messageText = `Hello from Alice at ${new Date().toISOString()}`;
-    await pageA.getByPlaceholder(`Message #${channelName}`).fill(messageText);
-    await pageA.getByRole('button', { name: 'Send' }).click();
+    await pageA.getByTestId('chat-input').fill(messageText);
+    await pageA.getByTestId('send-message-button').click();
 
     // 4. User B should receive the message in real-time
-    await expect(pageB.locator('.chat-history')).toContainText(messageText);
-    await expect(pageB.locator('.chat-history')).toContainText(userA);
+    await expect(pageB.getByTestId('chat-history')).toContainText(messageText);
+    await expect(pageB.getByTestId('chat-history')).toContainText(userA);
 
     // 5. User B replies
     const replyText = `Hi Alice! Bob here.`;
-    await pageB.getByPlaceholder(`Message #${channelName}`).fill(replyText);
-    await pageB.getByRole('button', { name: 'Send' }).click();
+    await pageB.getByTestId('chat-input').fill(replyText);
+    await pageB.getByTestId('send-message-button').click();
 
     // 6. User A should receive the reply
-    await expect(pageA.locator('.chat-history')).toContainText(replyText);
-    await expect(pageA.locator('.chat-history')).toContainText(userB);
+    await expect(pageA.getByTestId('chat-history')).toContainText(replyText);
+    await expect(pageA.getByTestId('chat-history')).toContainText(userB);
 
     await contextA.close();
     await contextB.close();

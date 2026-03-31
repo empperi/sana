@@ -97,18 +97,19 @@ fn auth_form(props: &AuthFormProps) -> Html {
     };
 
     html! {
-        <div class="auth-container">
+        <div class="auth-container" data-testid="auth-container">
             <div class="auth-box">
                 <img src="/assets/Sana_logo.webp" alt="Sana Logo" class="auth-logo" />
                 <h2>{ &props.title }</h2>
                 
                 if let Some(err) = &*error_msg {
-                    <div class="auth-error">{ err }</div>
+                    <div class="auth-error" data-testid="auth-error">{ err }</div>
                 }
 
                 <form {onsubmit} class="auth-form">
                     <input 
                         type="text" 
+                        data-testid="username-input"
                         placeholder={if props.api_endpoint.contains("login") { "Username" } else { "Choose a Username" }}
                         value={(*username).clone()} 
                         oninput={on_username_input}
@@ -116,12 +117,13 @@ fn auth_form(props: &AuthFormProps) -> Html {
                     />
                     <input 
                         type="password" 
+                        data-testid="password-input"
                         placeholder={if props.api_endpoint.contains("login") { "Password" } else { "Choose a Password" }}
                         value={(*password).clone()} 
                         oninput={on_password_input}
                         required=true
                     />
-                    <button type="submit" disabled={username.is_empty() || password.is_empty()}>
+                    <button type="submit" data-testid="auth-submit" disabled={username.is_empty() || password.is_empty()}>
                         { &props.submit_label }
                     </button>
                 </form>

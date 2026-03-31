@@ -74,8 +74,8 @@ pub fn profile_menu(props: &ProfileMenuProps) -> Html {
     let initial = props.username.chars().next().unwrap_or('?').to_uppercase().to_string();
 
     html! {
-        <div class="profile-menu-container" ref={menu_ref}>
-            <button class="profile-button" onclick={toggle_menu}>
+        <div class="profile-menu-container" ref={menu_ref} data-testid="profile-menu">
+            <button class="profile-button" data-testid="profile-button" onclick={toggle_menu}>
                 <div class="avatar">{ &initial }</div>
                 <span class="username">{ &props.username }</span>
                 <svg viewBox="0 0 20 20" fill="currentColor" class="chevron">
@@ -83,7 +83,7 @@ pub fn profile_menu(props: &ProfileMenuProps) -> Html {
                 </svg>
             </button>
             if *is_open {
-                <div class="profile-dropdown">
+                <div class="profile-dropdown" data-testid="profile-dropdown">
                     <div class="dropdown-header">
                         <div class="avatar-large">{ &initial }</div>
                         <div class="user-info">
@@ -95,7 +95,7 @@ pub fn profile_menu(props: &ProfileMenuProps) -> Html {
                         </div>
                     </div>
                     <div class="dropdown-divider"></div>
-                    <button class="dropdown-item" onclick={logout}>
+                    <button class="dropdown-item" data-testid="logout-button" onclick={logout}>
                         { "Logout" }
                     </button>
                 </div>

@@ -119,12 +119,12 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
     };
 
     html! {
-        <div class="chat-container">
-            <header>
+        <div class="chat-container" data-testid="chat-container">
+            <header data-testid="chat-header">
                 <h1>{ format!("# {}", props.current_channel) }</h1>
                 <ProfileMenu username={props.current_username.clone()} />
             </header>
-            <div class="chat-history" ref={history_ref} onscroll={on_scroll}>
+            <div class="chat-history" data-testid="chat-history" ref={history_ref} onscroll={on_scroll}>
                 { for props.messages.iter().map(|entry| {
                     match entry {
                         ChannelEntry::Message(msg) => {
@@ -139,7 +139,7 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                             );
 
                             html! {
-                                <div key={msg.id.to_string()} class={wrapper_class}>
+                                <div key={msg.id.to_string()} class={wrapper_class} data-testid="chat-message">
                                     <div class="meta">
                                         <span class="user">{ &msg.user }</span>
                                         <span class="time">{ time_str }</span>
@@ -152,7 +152,7 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                             let local_time: DateTime<Local> = DateTime::from(*timestamp);
                             let time_str = local_time.format("%H:%M:%S").to_string();
                             html! {
-                                <div key={id.to_string()} class="message-wrapper system">
+                                <div key={id.to_string()} class="message-wrapper system" data-testid="system-message">
                                     <div class="system-message">
                                         { format!("{} has joined", username) }
                                         <span class="time">{ format!(" ({})", time_str) }</span>
@@ -169,16 +169,17 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                     { "New messages ↓" }
                 </div>
             }
-            <footer>
+            <footer data-testid="chat-footer">
                 <form onsubmit={on_submit}>
                     <input
                         type="text"
                         ref={input_ref}
+                        data-testid="chat-input"
                         value={(*input_value).clone()}
                         oninput={on_input}
                         placeholder={format!("Message #{}", props.current_channel)}
                     />
-                    <button type="submit" disabled={input_value.is_empty()}>{ "Send" }</button>
+                    <button type="submit" data-testid="send-message-button" disabled={input_value.is_empty()}>{ "Send" }</button>
                 </form>
             </footer>
         </div>

@@ -38,12 +38,12 @@ pub fn sidebar(props: &SidebarProps) -> Html {
             if props.is_mobile_open {
                 <div class="sidebar-overlay" onclick={let on_close = props.on_close_sidebar.clone(); move |_| on_close.emit(())}></div>
             }
-            <div class={sidebar_classes}>
+            <div class={sidebar_classes} data-testid="sidebar">
                 <div class="sidebar-header">
                     <img src="/assets/Sana_logo.webp" alt="Sana Logo" class="logo" />
                     <div class="header-content">
                         <h2>{ "Sana" }</h2>
-                        <div class={classes!("connection-status", status_class)}>
+                        <div class={classes!("connection-status", status_class)} data-testid="connection-status">
                             <span class="indicator"></span>
                             { status_text }
                         </div>
@@ -51,15 +51,15 @@ pub fn sidebar(props: &SidebarProps) -> Html {
                 </div>
 
                 <div class="sidebar-actions">
-                    <button class="browse-button" onclick={let on_open = props.on_open_join_modal.clone(); move |_| on_open.emit(false)}>
+                    <button class="browse-button" data-testid="browse-channels-button" onclick={let on_open = props.on_open_join_modal.clone(); move |_| on_open.emit(false)}>
                         { "Browse Channels" }
                     </button>
-                    <button class="create-button" onclick={let on_open = props.on_open_join_modal.clone(); move |_| on_open.emit(true)}>
+                    <button class="create-button" data-testid="open-create-channel-modal" onclick={let on_open = props.on_open_join_modal.clone(); move |_| on_open.emit(true)}>
                         { "+" }
                     </button>
                 </div>
 
-                <ul class="channel-list">
+                <ul class="channel-list" data-testid="channel-list">
                     { for props.channels.iter().map(|channel| {
                         let channel_name = channel.clone();
                         let is_active = props.current_channel == channel_name;
