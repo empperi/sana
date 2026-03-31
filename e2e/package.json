@@ -1,0 +1,13 @@
+{
+  "name": "sana-e2e",
+  "version": "1.0.0",
+  "description": "End-to-end tests for Sana",
+  "main": "index.js",
+  "scripts": {
+    "test": "npx playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.42.1",
+    "typescript": "^5.3.3"
+  }
+}

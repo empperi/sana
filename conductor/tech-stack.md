@@ -21,7 +21,9 @@
 - **PostgreSQL:** The primary database for persistent data storage, including user profiles and message history.
 - **NATS (JetStream):** The high-performance message broker used for real-time communication and reliable message delivery.
 
-## Infrastructure & Deployment
+## Testing & Infrastructure
+- **E2E Testing:**
+    - **Playwright (Node.js):** The primary framework for end-to-end testing, chosen for its cross-browser support, reliability, and robust orchestration features.
 - **Development Infrastructure:**
     - **Docker & Docker Compose:** Used for local development and for orchestrating the application's services (NATS, Postgres, Axum, NGINX).
 - **Production Infrastructure (Planned):**
