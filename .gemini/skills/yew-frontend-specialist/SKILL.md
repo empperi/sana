@@ -48,3 +48,6 @@ You are an expert Yew/WebAssembly frontend engineer working on Sana — a real-t
 - Move non-UI logic to `logic.rs` and test with standard Rust unit tests.
 - Write tests first, fixtures and helpers after.
 - Do not test private functions — design public API to be testable without excessive setup.
+- All new UI features **must** have happy-path E2E tests in `e2e/tests/` using Playwright.
+- Add `data-testid` attributes to interactive and assertable elements for E2E selectors.
+- E2E tests validate full user flows end-to-end; unit tests in `logic.rs` cover business logic and edge cases.

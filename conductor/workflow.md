@@ -59,6 +59,7 @@ All tasks follow a strict lifecycle:
 
 3.  **Execute Automated Tests with Proactive Debugging:**
     -   Announce and run the automated test suite. If tests fail, report to the user and attempt up to two fixes before seeking guidance.
+    -   **E2E tests**: Encouraged at phase completion when the phase contains significant UI or integration changes. Run with `cd e2e && npx playwright test --reporter=list` (always use `--reporter=list` — the default HTML reporter hangs).
 
 4.  **Propose a Detailed, Actionable Manual Verification Plan:**
     -   Analyze requirements and present a step-by-step manual verification plan to the user.
@@ -143,6 +144,19 @@ cd frontend; cargo test
 - Test authentication and authorization
 - Check form submissions
 
+### E2E Testing (Playwright)
+- E2E tests are **primarily for happy-path** validation of user-facing flows
+- Unhappy-path testing belongs at unit/integration level — faster, less brittle, better error localization
+- Exception: unhappy-path E2E is acceptable when it genuinely cannot be tested at a lower level
+- All new UI features **must** have happy-path E2E tests in `e2e/tests/`
+- Use `data-testid` attributes for selectors, never CSS classes or DOM structure
+- Run: `cd e2e && npx playwright test --reporter=list` (always use `--reporter=list` — default reporter hangs)
+- Requires Docker stack: `docker compose -f docker-compose.e2e.yml --project-name sana-e2e up --wait`
+
+### Track Completion: E2E Requirement
+- E2E tests **must** always be executed at the end of a Conductor track before marking the track complete
+- This is in addition to unit and integration tests which run at every phase
+
 ## Code Review Process
 
 ### Self-Review Checklist
@@ -213,6 +227,7 @@ A task is complete when:
 5. Code passes all configured linting and static analysis checks
 6. Implementation notes added to phase commit message
 7. Changes committed with proper message
+8. Happy-path E2E tests added for new UI-facing features
 
 ## Emergency Procedures
 

@@ -49,3 +49,5 @@ All inbound STOMP messages must be pushed to NATS with minimal logic (read-your-
 - Write tests first, then fixtures and helper functions.
 - Integration tests must not open database transactions — that is the service layer's responsibility.
 - Mock DB and NATS in unit tests; use `setup_test_db` helpers for integration tests.
+- E2E tests exist in `e2e/tests/` for happy-path user flow validation — backend changes affecting user-facing flows may require corresponding E2E test updates.
+- Unhappy-path testing for backend logic stays at unit/integration level.

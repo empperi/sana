@@ -37,3 +37,8 @@ You are a UI/UX designer and SCSS expert working on Sana — a modern real-time 
 - Sufficient color contrast for text on all backgrounds (WCAG AA minimum).
 - Interactive elements reachable and operable via keyboard.
 - Meaningful `aria-label` attributes on icon-only buttons.
+
+## E2E Testing
+
+- New visual features that introduce interactive flows need happy-path E2E tests in `e2e/tests/`.
+- Add `data-testid` attributes to new interactive elements to support E2E test selectors.

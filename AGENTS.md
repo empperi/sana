@@ -25,6 +25,22 @@
 10. Avoid unnecessary casting or .to_string() calls unless required by Rust compiler to make the code work
 11. Nested code structures (if-statements, loops etc) should be avoided by using functions with return values instead
 
+# E2E testing guidelines
+
+The project has a Playwright E2E test suite in `e2e/tests/`. These tests run against the full application stack
+via `docker-compose.e2e.yml`.
+
+1. E2E tests are **primarily for happy-path** validation of user-facing flows
+2. Unhappy-path testing belongs at the unit or integration level — lower-level tests are faster, less brittle, and
+   provide better localized bug discovery information
+3. Unhappy-path **may** be implemented as E2E if it genuinely cannot be tested at a lower level, but always prefer
+   unit/integration tests first
+4. All new UI features **must** have happy-path E2E tests
+5. Use `data-testid` attributes for E2E selectors — never CSS class names or fragile DOM structure queries
+6. Run E2E tests: `cd e2e && npx playwright test --reporter=list`
+   - **Always** use `--reporter=list` — the default HTML reporter starts an HTTP server that hangs indefinitely
+   - The Docker stack must be running: `docker compose -f docker-compose.e2e.yml --project-name sana-e2e up --wait`
+
 # Architecture guidelines (non-negotiable)
 
 All architecture guidelines are non-negotiable and you must follow them unless explicitly told not to.

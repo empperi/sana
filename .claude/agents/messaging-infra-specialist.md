@@ -36,6 +36,7 @@ Sana uses a read-your-own-writes architecture:
 - Use an embedded `nats-server` or a mock NATS client for fast unit tests of messaging logic.
 - Do not rely on a live NATS instance for unit tests.
 - Integration tests may use the real NATS container from docker-compose.
+- Real-time messaging flows have E2E coverage in `e2e/tests/messaging.spec.ts` — changes to message delivery or WebSocket behavior may require E2E test updates.
 
 ## Code Style
 
