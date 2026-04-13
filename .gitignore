@@ -33,3 +33,5 @@ gha-creds-*.json
 
 # used to provide bug screenshots for gemini
 bug.png
+
+logs.txt
