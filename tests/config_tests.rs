@@ -3,8 +3,17 @@ use std::env;
 use std::io::Write;
 use tempfile::NamedTempFile;
 
+use std::sync::Mutex;
+
+static ENV_MUTEX: std::sync::OnceLock<Mutex<()>> = std::sync::OnceLock::new();
+
+fn get_env_mutex() -> &'static Mutex<()> {
+    ENV_MUTEX.get_or_init(|| Mutex::new(()))
+}
+
 #[test]
 fn test_cors_origin_default() {
+    let _lock = get_env_mutex().lock().unwrap();
     env::remove_var("CORS_ORIGIN");
     let config = Config::load(None);
     assert_eq!(config.cors_origin, "http://localhost:8080");
@@ -12,6 +21,7 @@ fn test_cors_origin_default() {
 
 #[test]
 fn test_cors_origin_from_env() {
+    let _lock = get_env_mutex().lock().unwrap();
     env::set_var("CORS_ORIGIN", "https://example.com");
     let config = Config::load(None);
     assert_eq!(config.cors_origin, "https://example.com");
@@ -20,10 +30,12 @@ fn test_cors_origin_from_env() {
 
 #[test]
 fn test_config_loading() {
+    let _lock = get_env_mutex().lock().unwrap();
     // 1. Test Defaults
     {
         env::remove_var("NATS_URL");
         env::remove_var("POSTGRES_USER");
+        env::remove_var("DATABASE_URL");
         
         let config = Config::load(None);
         
@@ -40,6 +52,7 @@ fn test_config_loading() {
 
         env::remove_var("NATS_URL");
         env::remove_var("POSTGRES_USER");
+        env::remove_var("DATABASE_URL");
 
         let config = Config::load(Some(path));
 
@@ -63,5 +76,6 @@ fn test_config_loading() {
         
         env::remove_var("NATS_URL");
         env::remove_var("POSTGRES_USER");
+        env::remove_var("DATABASE_URL");
     }
 }

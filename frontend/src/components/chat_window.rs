@@ -1,9 +1,17 @@
 use yew::prelude::*;
 use crate::types::ChannelEntry;
 use crate::components::profile_menu::ProfileMenu;
+use crate::components::attachment_button::AttachmentButton;
+use crate::components::attachment_renderer::AttachmentRenderer;
 use chrono::{DateTime, Local, Utc};
 use crate::hooks::use_chat_scroll;
 use uuid::Uuid;
+use crate::state::ChatStateContext;
+use crate::logic::ChatAction;
+use crate::services::attachment::upload_file;
+use web_sys::{DragEvent, ClipboardEvent};
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
 
 #[derive(Properties, PartialEq)]
 pub struct ChatWindowProps {
@@ -18,6 +26,8 @@ pub struct ChatWindowProps {
 
 #[function_component(ChatWindow)]
 pub fn chat_window(props: &ChatWindowProps) -> Html {
+    let ctx = use_context::<ChatStateContext>().expect("No ChatStateContext found");
+    
     let input_value = use_state(String::new);
     let input_ref = use_node_ref();
 
@@ -34,17 +44,15 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
 
     {
         let (ref old_channel, ref old_msgs, old_was_at_bottom) = *prev_state_ref.borrow();
-        if old_channel != &props.current_channel {
-            if old_was_at_bottom {
-                if let Some(last_entry) = old_msgs.last() {
-                    let entry_id = match last_entry {
-                        ChannelEntry::Message(m) => Some(m.id),
-                        ChannelEntry::UserJoined { id, .. } => Some(*id),
-                        _ => None,
-                    };
-                    if let Some(id) = entry_id {
-                        props.on_mark_read.emit((old_channel.clone(), id));
-                    }
+        if old_channel != &props.current_channel && old_was_at_bottom {
+            if let Some(last_entry) = old_msgs.last() {
+                let entry_id = match last_entry {
+                    ChannelEntry::Message(m) if !m.pending => Some(m.id),
+                    ChannelEntry::UserJoined { id, .. } => Some(*id),
+                    _ => None,
+                };
+                if let Some(id) = entry_id {
+                    props.on_mark_read.emit((old_channel.clone(), id));
                 }
             }
         }
@@ -106,20 +114,72 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
     let on_submit = {
         let input_value = input_value.clone();
         let on_send_message = props.on_send_message.clone();
+        let has_attachments = !ctx.state.pending_attachments.is_empty();
 
         Callback::from(move |e: SubmitEvent| {
             e.prevent_default();
             let text = (*input_value).clone();
-            if !text.is_empty() {
+            if !text.is_empty() || has_attachments {
                 on_send_message.emit(text);
                 input_value.set(String::new());
-                // After send we usually scroll to bottom but it's handled by auto-scroll on message append
+            }
+        })
+    };
+
+    let on_drag_over = Callback::from(|e: DragEvent| {
+        e.prevent_default();
+    });
+
+    let on_drop = {
+        let dispatch = ctx.dispatch.clone();
+        Callback::from(move |e: DragEvent| {
+            e.prevent_default();
+            if let Some(data_transfer) = e.data_transfer() {
+                if let Some(files) = data_transfer.files() {
+                    if files.length() > 0 {
+                        if let Some(file) = files.get(0) {
+                            let dispatch = dispatch.clone();
+                            dispatch.emit(ChatAction::SetAttachmentError(None));
+                            spawn_local(async move {
+                                match upload_file(file).await {
+                                    Ok(meta) => dispatch.emit(ChatAction::AddPendingAttachment(meta)),
+                                    Err(err) => dispatch.emit(ChatAction::SetAttachmentError(Some(err))),
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+        })
+    };
+
+    let on_paste = {
+        let dispatch = ctx.dispatch.clone();
+        Callback::from(move |e: Event| {
+            if let Ok(ce) = e.clone().dyn_into::<ClipboardEvent>() {
+                if let Some(data_transfer) = ce.clipboard_data() {
+                    if let Some(files) = data_transfer.files() {
+                        if files.length() > 0 {
+                            if let Some(file) = files.get(0) {
+                                ce.prevent_default();
+                                let dispatch = dispatch.clone();
+                                dispatch.emit(ChatAction::SetAttachmentError(None));
+                                spawn_local(async move {
+                                    match upload_file(file).await {
+                                        Ok(meta) => dispatch.emit(ChatAction::AddPendingAttachment(meta)),
+                                        Err(err) => dispatch.emit(ChatAction::SetAttachmentError(Some(err))),
+                                    }
+                                });
+                            }
+                        }
+                    }
+                }
             }
         })
     };
 
     html! {
-        <div class="chat-container" data-testid="chat-container">
+        <div class="chat-container" data-testid="chat-area" ondragover={on_drag_over} ondrop={on_drop}>
             <header data-testid="chat-header">
                 <h1>{ format!("# {}", props.current_channel) }</h1>
                 <ProfileMenu username={props.current_username.clone()} />
@@ -145,6 +205,9 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                                         <span class="time">{ time_str }</span>
                                     </div>
                                     <div class="message">{ &msg.message }</div>
+                                    if !msg.attachments.is_empty() {
+                                        <AttachmentRenderer attachments={msg.attachments.clone()} />
+                                    }
                                 </div>
                             }
                         },
@@ -170,16 +233,39 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                 </div>
             }
             <footer data-testid="chat-footer">
-                <form onsubmit={on_submit}>
+                if let Some(err) = &ctx.state.attachment_error {
+                    <div class="attachment-error" data-testid="attachment-error" style="color: red; padding: 4px;">{ err }</div>
+                }
+                if !ctx.state.pending_attachments.is_empty() {
+                    <div class="pending-attachments" style="display: flex; gap: 8px; padding: 4px;">
+                        { for ctx.state.pending_attachments.iter().map(|att| {
+                            let id = att.id;
+                            let dispatch = ctx.dispatch.clone();
+                            let on_remove = Callback::from(move |_| {
+                                dispatch.emit(ChatAction::RemovePendingAttachment(id));
+                            });
+                            html! {
+                                <div class="pending-attachment" data-testid={format!("pending-attachment-{}", id)} style="background: #eee; padding: 4px; border-radius: 4px; display: flex; align-items: center; gap: 4px;">
+                                    <span>{ &att.original_filename }</span>
+                                    <button onclick={on_remove} style="border: none; background: transparent; cursor: pointer; color: red;">{ "x" }</button>
+                                </div>
+                            }
+                        }) }
+                    </div>
+                }
+                <form onsubmit={on_submit} style="display: flex; gap: 8px; width: 100%;">
+                    <AttachmentButton />
                     <input
                         type="text"
                         ref={input_ref}
                         data-testid="chat-input"
                         value={(*input_value).clone()}
                         oninput={on_input}
+                        onpaste={on_paste}
+                        style="flex-grow: 1;"
                         placeholder={format!("Message #{}", props.current_channel)}
                     />
-                    <button type="submit" data-testid="send-message-button" disabled={input_value.is_empty()}>{ "Send" }</button>
+                    <button type="submit" data-testid="send-message-button" disabled={input_value.is_empty() && ctx.state.pending_attachments.is_empty()}>{ "Send" }</button>
                 </form>
             </footer>
         </div>

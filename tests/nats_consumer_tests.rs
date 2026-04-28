@@ -49,6 +49,7 @@ async fn test_nats_broadcast_relay() {
         message: "relay me".to_string(),
         seq: None,
         msg_type: MessageType::Chat,
+        attachments: Vec::new(),
     };
     let entry = ChannelEntry::Message(chat_msg);
     let payload = serde_json::to_string(&entry).unwrap();

@@ -60,6 +60,7 @@ async fn test_message_insertion() {
         message: "Hello world".to_string(),
         seq: Some(10),
         msg_type: MessageType::Chat,
+        attachments: Vec::new(),
     };
 
     let mut tx = pool.begin().await.expect("Failed to start transaction");
@@ -90,6 +91,7 @@ async fn test_message_insertion_idempotency() {
         message: "Hello world".to_string(),
         seq: Some(20),
         msg_type: MessageType::Chat,
+        attachments: Vec::new(),
     };
 
     // Insert twice
@@ -124,6 +126,7 @@ async fn setup_user_channel_and_message(pool: &PgPool) -> (Uuid, Uuid, Uuid) {
         message: "Test message".to_string(),
         seq: Some(1),
         msg_type: MessageType::Chat,
+        attachments: Vec::new(),
     };
     db::messages::insert_message(&mut tx, 1, &msg).await.unwrap();
     tx.commit().await.unwrap();

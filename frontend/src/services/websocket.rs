@@ -140,6 +140,7 @@ impl WebSocketService {
         });
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn connection_loop<W, R>(
         mut write: W,
         read: R,
@@ -192,6 +193,7 @@ impl WebSocketService {
         None
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn sync_subscriptions<W, R>(
         write: &mut W,
         read: &mut futures::stream::Fuse<R>,
@@ -240,13 +242,18 @@ impl WebSocketService {
     ) -> Result<(), ()>
     where W: Sink<Message, Error = WebSocketError> + Unpin
     {
-        let mut buffer = outgoing_buffer.borrow_mut();
-        for msg in buffer.drain(..) {
+        let msgs: Vec<String> = {
+            let mut buffer = outgoing_buffer.borrow_mut();
+            buffer.drain(..).collect()
+        };
+        for msg in msgs {
             if write.send(Message::Text(msg)).await.is_err() { return Err(()); }
         }
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)]
     async fn main_message_loop<W, R>(
         mut write: W,
         mut read: futures::stream::Fuse<R>,

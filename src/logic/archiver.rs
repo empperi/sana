@@ -190,6 +190,7 @@ async fn archive_join_event(
         message: format!("{} joined", username),
         seq: Some(sequence),
         msg_type: crate::messages::MessageType::Join,
+        attachments: Vec::new(),
     };
 
     crate::db::messages::insert_message_with_fk_check(&mut tx, sequence, &chat_msg).await
@@ -211,6 +212,13 @@ async fn archive_chat_message(
 
     crate::db::messages::insert_message_with_fk_check(&mut tx, sequence, &chat_msg).await
         .map_err(|e| format!("Failed to insert message: {}", e))?;
+
+    // Link attachments if present
+    if !chat_msg.attachments.is_empty() {
+        let attachment_ids: Vec<Uuid> = chat_msg.attachments.iter().map(|a| a.id).collect();
+        crate::db::attachments::link_attachments_to_message(&mut tx, &attachment_ids, chat_msg.id, chat_msg.user_id).await
+            .map_err(|e| format!("Failed to link attachments: {}", e))?;
+    }
 
     tx.commit().await
         .map_err(|e| format!("Failed to commit transaction: {}", e))?;

@@ -1,0 +1,8 @@
+{
+  "track_id": "file_attachments_20260416",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-04-16T12:00:00Z",
+  "updated_at": "2026-04-16T12:00:00Z",
+  "description": "Implement capability for users to drop file attachments to chats. When doing so, the file is added adjacent to the actual message user might type. When user attaches a file which can be viewed in a browser (such as an image) that attachment is shown inline with the message. Rational size limits should be applied."
+}

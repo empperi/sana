@@ -70,6 +70,7 @@ async fn test_archiver_message_persistence() {
         message: "persistent message".to_string(),
         seq: None,
         msg_type: MessageType::Chat,
+        attachments: Vec::new(),
     };
     let entry = ChannelEntry::Message(chat_msg);
     let payload = serde_json::to_string(&entry).unwrap();

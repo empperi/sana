@@ -51,6 +51,18 @@ impl Reducible for ChatState {
             ChatAction::ClearSubscriptions => {
                 new_state.subscribed_channels.clear();
             }
+            ChatAction::AddPendingAttachment(attachment) => {
+                new_state.add_pending_attachment(attachment);
+            }
+            ChatAction::RemovePendingAttachment(id) => {
+                new_state.remove_pending_attachment(id);
+            }
+            ChatAction::ClearPendingAttachments => {
+                new_state.clear_pending_attachments();
+            }
+            ChatAction::SetAttachmentError(error) => {
+                new_state.set_attachment_error(error);
+            }
         }
         Rc::new(new_state)
     }

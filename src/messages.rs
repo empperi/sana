@@ -16,6 +16,14 @@ pub enum MessageType {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct AttachmentMeta {
+    pub id: Uuid,
+    pub original_filename: String,
+    pub file_size: i64,
+    pub mime_type: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct ChatMessage {
     pub id: Uuid,
     pub channel_id: Uuid,
@@ -25,6 +33,8 @@ pub struct ChatMessage {
     pub message: String,
     pub seq: Option<u64>,
     pub msg_type: MessageType,
+    #[serde(default)]
+    pub attachments: Vec<AttachmentMeta>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

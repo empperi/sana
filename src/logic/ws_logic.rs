@@ -267,6 +267,12 @@ fn get_or_create_broadcast_channel(channel_name: &str, state: &AppState) -> toki
         .clone()
 }
 
+#[derive(serde::Deserialize)]
+struct SendMessagePayload {
+    message: String,
+    attachment_ids: Option<Vec<Uuid>>,
+}
+
 pub async fn process_and_publish_message(
     subject: String, 
     body: String, 
@@ -280,7 +286,28 @@ pub async fn process_and_publish_message(
     
     let channel_id = resolve_channel_id(channel_name, state).await?;
 
-    let chat_msg = build_chat_message(id, channel_id, user_id, username, body);
+    // Try to parse body as JSON if it contains attachment_ids
+    let (message_text, attachments) = if let Ok(payload) = serde_json::from_str::<SendMessagePayload>(&body) {
+        let mut metas = Vec::new();
+        if let Some(ids) = payload.attachment_ids {
+            if !ids.is_empty() {
+                let mut tx = state.db_pool.begin().await
+                    .map_err(|e| WsError::DatabaseError(e.to_string()))?;
+                
+                // Fetch metas for these IDs (read-only)
+                for att_id in ids {
+                    if let Ok(meta) = crate::db::attachments::get_attachment_by_id(&mut tx, att_id).await {
+                        metas.push(meta);
+                    }
+                }
+            }
+        }
+        (payload.message, metas)
+    } else {
+        (body, Vec::new())
+    };
+
+    let chat_msg = build_chat_message(id, channel_id, user_id, username, message_text, attachments);
     let entry = ChannelEntry::Message(chat_msg);
 
     let json_body = serde_json::to_string(&entry)
@@ -314,7 +341,14 @@ pub async fn resolve_channel_id(channel_name: &str, state: &AppState) -> Result<
     }
 }
 
-pub fn build_chat_message(id: Uuid, channel_id: Uuid, user_id: Uuid, username: &str, body: String) -> ChatMessage {
+pub fn build_chat_message(
+    id: Uuid, 
+    channel_id: Uuid, 
+    user_id: Uuid, 
+    username: &str, 
+    body: String,
+    attachments: Vec<crate::messages::AttachmentMeta>
+) -> ChatMessage {
     ChatMessage {
         id,
         channel_id,
@@ -324,6 +358,7 @@ pub fn build_chat_message(id: Uuid, channel_id: Uuid, user_id: Uuid, username: &
         message: body,
         seq: None,
         msg_type: crate::messages::MessageType::Chat,
+        attachments,
     }
 }
 

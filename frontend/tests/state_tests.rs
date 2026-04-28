@@ -43,3 +43,45 @@ fn test_chat_action_switch_channel() {
     
     assert_eq!(new_state.current_channel, "Rust");
 }
+
+#[test]
+fn test_attachment_actions() {
+    let state = Rc::new(ChatState::new());
+    
+    let att1 = frontend::types::AttachmentMeta {
+        id: Uuid::new_v4(),
+        original_filename: "test1.png".to_string(),
+        file_size: 1024,
+        mime_type: "image/png".to_string(),
+    };
+    
+    let att2 = frontend::types::AttachmentMeta {
+        id: Uuid::new_v4(),
+        original_filename: "test2.pdf".to_string(),
+        file_size: 2048,
+        mime_type: "application/pdf".to_string(),
+    };
+
+    // Add first attachment
+    let new_state = reducer(state, ChatAction::AddPendingAttachment(att1.clone()));
+    assert_eq!(new_state.pending_attachments.len(), 1);
+    assert_eq!(new_state.pending_attachments[0].id, att1.id);
+
+    // Add second attachment
+    let new_state = reducer(new_state, ChatAction::AddPendingAttachment(att2.clone()));
+    assert_eq!(new_state.pending_attachments.len(), 2);
+    
+    // Set error
+    let new_state = reducer(new_state, ChatAction::SetAttachmentError(Some("Too large".to_string())));
+    assert_eq!(new_state.attachment_error, Some("Too large".to_string()));
+
+    // Remove first attachment
+    let new_state = reducer(new_state, ChatAction::RemovePendingAttachment(att1.id));
+    assert_eq!(new_state.pending_attachments.len(), 1);
+    assert_eq!(new_state.pending_attachments[0].id, att2.id);
+
+    // Clear all
+    let new_state = reducer(new_state, ChatAction::ClearPendingAttachments);
+    assert!(new_state.pending_attachments.is_empty());
+}
+

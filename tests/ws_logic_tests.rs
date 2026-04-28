@@ -31,6 +31,7 @@ fn test_merge_and_deduplicate() {
         message: "hello".to_string(),
         seq: Some(1),
         msg_type: MessageType::Chat,
+        attachments: Vec::new(),
     };
     
     let msg2 = ChatMessage {
@@ -42,6 +43,7 @@ fn test_merge_and_deduplicate() {
         message: "world".to_string(),
         seq: Some(2),
         msg_type: MessageType::Chat,
+        attachments: Vec::new(),
     };
     
     let db_history = vec![
@@ -78,6 +80,7 @@ async fn test_send_in_batches() {
             message: format!("msg {}", i),
             seq: Some(i as u64),
             msg_type: MessageType::Chat,
+            attachments: Vec::new(),
         })
     }).collect();
     
@@ -119,7 +122,8 @@ fn test_build_chat_message() {
         channel_id,
         user_id,
         username,
-        body.to_string()
+        body.to_string(),
+        Vec::new()
     );
     
     assert_eq!(msg.id, msg_id);

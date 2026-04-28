@@ -23,11 +23,15 @@ test.describe('Channel Management', () => {
     await expect(page.getByTestId('chat-header')).toContainText(`# ${channelName}`);
 
     // 4. Test joining an existing channel (from another user's perspective, but here we just browse)
+    const responsePromise = page.waitForResponse(r => r.url().includes('/api/channels/unjoined'));
     await page.getByTestId('browse-channels-button').click();
+    await responsePromise;
     await expect(page.getByRole('heading', { name: 'Join Existing Channels' })).toBeVisible();
     
     // Search for the channel we just created (it should NOT be there for us since we already joined)
+    const searchPromise = page.waitForResponse(r => r.url().includes('/api/channels/unjoined'));
     await page.getByTestId('search-channels-input').fill(channelName);
+    await searchPromise;
     await expect(page.getByTestId('no-channels-found')).toBeVisible();
 
     // Close modal

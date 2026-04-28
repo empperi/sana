@@ -18,10 +18,11 @@ services:
           memory: 512M
           cpus: '1.0'
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:3000/health"]
       interval: 10s
       timeout: 5s
       retries: 3
+      start_period: 30s
     depends_on:
       db:
         condition: service_healthy
@@ -33,6 +34,9 @@ services:
       - DATABASE_URL=postgres://sana_user:sana_password@db:5432/sana_db
       - COOKIE_KEY=${COOKIE_KEY}
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:8080}
+      - ATTACHMENT_STORAGE_DIR=/app/data/attachments
+    volumes:
+      - attachment-data:/app/data/attachments
 
   nats:
     image: nats:latest
@@ -77,3 +81,4 @@ services:
 
 volumes:
   pgdata:
+  attachment-data:
