@@ -93,6 +93,7 @@ async fn insert_test_message(pool: &PgPool, channel_id: Uuid, user_id: Uuid, use
         message: content.to_string(),
         seq: Some(seq),
         msg_type: MessageType::Chat,
+        attachments: Vec::new(),
     };
     let mut tx = pool.begin().await.unwrap();
     db::messages::insert_message(&mut tx, seq, &msg).await.unwrap();

@@ -234,6 +234,7 @@ fn handle_send_message(
         pending: true,
         seq: None,
         msg_type: MessageType::Chat,
+        attachments: Vec::new(),
     };
 
     dispatch.emit(ChatAction::AddPendingMessage { channel: channel_name.clone(), msg: pending_msg });

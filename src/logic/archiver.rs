@@ -190,6 +190,7 @@ async fn archive_join_event(
         message: format!("{} joined", username),
         seq: Some(sequence),
         msg_type: crate::messages::MessageType::Join,
+        attachments: Vec::new(),
     };
 
     crate::db::messages::insert_message_with_fk_check(&mut tx, sequence, &chat_msg).await

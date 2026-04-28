@@ -126,6 +126,7 @@ async fn insert_msg(ctx: &TestContext, chan_id: Uuid, user: &db::users::User, te
         message: text.to_string(), 
         seq: Some(seq),
         msg_type: MessageType::Chat,
+        attachments: Vec::new(),
     };
     let mut tx = ctx.pool.begin().await.unwrap();
     db::messages::insert_message(&mut tx, seq, &msg).await.unwrap();

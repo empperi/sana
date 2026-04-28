@@ -2,6 +2,7 @@ use sqlx::{Postgres, Transaction, Row};
 use crate::messages::ChatMessage;
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
+use std::collections::HashMap;
 
 pub async fn insert_message(
     tx: &mut Transaction<'_, Postgres>,
@@ -125,7 +126,7 @@ pub async fn get_messages(
     // To cleanly separate them on the frontend, the history loading API would ideally return ChannelEntry.
     // Let's keep returning ChatMessage but we can differentiate them by content if needed.
     
-    let messages = rows.into_iter().map(|row| ChatMessage {
+    let mut messages: Vec<ChatMessage> = rows.into_iter().map(|row| ChatMessage {
         id: row.get("id"),
         channel_id: row.get("channel_id"),
         user_id: row.get("user_id"),
@@ -134,7 +135,26 @@ pub async fn get_messages(
         message: row.get("message"),
         seq: Some(row.get::<i64, _>("seq") as u64),
         msg_type: row.get("msg_type"),
+        attachments: Vec::new(),
     }).collect();
+
+    if !messages.is_empty() {
+        let message_ids: Vec<Uuid> = messages.iter().map(|m| m.id).collect();
+        let attachments = crate::db::attachments::get_attachments_for_messages(tx, &message_ids).await?;
+        
+        if !attachments.is_empty() {
+            let mut attachment_map: HashMap<Uuid, Vec<crate::messages::AttachmentMeta>> = HashMap::new();
+            for (msg_id, meta) in attachments {
+                attachment_map.entry(msg_id).or_default().push(meta);
+            }
+            
+            for msg in &mut messages {
+                if let Some(metas) = attachment_map.remove(&msg.id) {
+                    msg.attachments = metas;
+                }
+            }
+        }
+    }
 
     Ok(messages)
 }

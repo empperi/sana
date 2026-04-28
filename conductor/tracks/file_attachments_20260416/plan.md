@@ -15,7 +15,7 @@ Before starting any phase, understand these critical patterns:
 ## Phase 1: Database Schema and Repository Layer
 
 ### 1.1 Create database migration for `attachments` table
-- [ ] Task: Create a new SQL migration file in `migrations/` following the existing naming convention (e.g., `migrations/20260416000000_add_attachments.sql`). The table must have these columns:
+- [x] Task: Create a new SQL migration file in `migrations/` following the existing naming convention (e.g., `migrations/20260416000000_add_attachments.sql`). The table must have these columns:
   - `id UUID PRIMARY KEY DEFAULT gen_random_uuid()`
   - `message_id UUID NULL REFERENCES messages(id)` — NULL when uploaded but not yet sent with a message
   - `original_filename TEXT NOT NULL` — the user's original filename, sanitized
@@ -27,10 +27,10 @@ Before starting any phase, understand these critical patterns:
   - Add an index on `message_id` for efficient lookups: `CREATE INDEX idx_attachments_message_id ON attachments(message_id)`
 
 ### 1.2 Add attachment configuration to backend config
-- [ ] Task: In `src/config.rs`, add two new config fields: `attachment_storage_dir: String` (path to the directory where files are saved on disk) and `max_attachment_size_bytes: u64` (default 50 * 1024 * 1024 = 52428800). Load these from environment variables or the existing `config.json`. Make sure the storage directory is created on startup if it doesn't exist.
+- [x] Task: In `src/config.rs`, add two new config fields: `attachment_storage_dir: String` (path to the directory where files are saved on disk) and `max_attachment_size_bytes: u64` (default 50 * 1024 * 1024 = 52428800). Load these from environment variables or the existing `config.json`. Make sure the storage directory is created on startup if it doesn't exist.
 
 ### 1.3 Define the `AttachmentMeta` struct
-- [ ] Task: Create a shared struct that can be used across layers. Place it in `src/messages.rs` alongside the existing `ChatMessage` struct (this file already holds shared message types). The struct:
+- [x] Task: Create a shared struct that can be used across layers. Place it in `src/messages.rs` alongside the existing `ChatMessage` struct (this file already holds shared message types). The struct:
   ```rust
   #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
   pub struct AttachmentMeta {
@@ -43,24 +43,24 @@ Before starting any phase, understand these critical patterns:
   This is the **wire format** — it does NOT include `stored_filename` or `uploaded_by` (those are internal). This struct will be included in `ChatMessage` later.
 
 ### 1.4 Write repository layer tests and implementation
-- [ ] Task: Create `tests/attachment_db_tests.rs`. Write failing tests for:
+- [x] Task: Create `tests/attachment_db_tests.rs`. Write failing tests for:
   - `insert_attachment` — inserts a row with `message_id = NULL`, returns the inserted row.
   - `get_attachment_by_id` — retrieves a single attachment by its UUID.
   - `get_attachments_by_message_id` — retrieves all attachments for a given message_id.
   - `link_attachments_to_message` — given a list of attachment UUIDs and a message UUID, UPDATE's the `message_id` column on all matching rows. Must only link attachments where `uploaded_by` matches the requesting user (security check).
   - Tests need a real database (follow existing patterns in `tests/db_tests.rs` for setup).
-- [ ] Task: Create `src/db/attachments.rs` and implement the four repository functions to make the tests pass. Register it in `src/db/mod.rs`. Each function takes `&mut Transaction<'_, Postgres>` as its first argument (following the existing repository pattern in `src/db/messages.rs`). The `link_attachments_to_message` function must include a `WHERE uploaded_by = $3` clause to prevent users from claiming other users' uploads.
+- [x] Task: Create `src/db/attachments.rs` and implement the four repository functions to make the tests pass. Register it in `src/db/mod.rs`. Each function takes `&mut Transaction<'_, Postgres>` as its first argument (following the existing repository pattern in `src/db/messages.rs`). The `link_attachments_to_message` function must include a `WHERE uploaded_by = $3` clause to prevent users from claiming other users' uploads.
 
 ### 1.5 Extend `ChatMessage` with attachments field
-- [ ] Task: Add `#[serde(default)] pub attachments: Vec<AttachmentMeta>` to `ChatMessage` in `src/messages.rs`. The `#[serde(default)]` ensures backward compatibility — existing messages without attachments will deserialize with an empty vec.
-- [ ] Task: Add the same field to the frontend's `ChatMessage` in `frontend/src/types.rs`: `#[serde(default)] pub attachments: Vec<AttachmentMeta>`. Also add the `AttachmentMeta` struct to `frontend/src/types.rs` (duplicated from backend — this is intentional since frontend and backend are separate crates).
-- [ ] Task: Update the `get_messages` function in `src/db/messages.rs` to LEFT JOIN the `attachments` table and populate the `attachments` Vec on each `ChatMessage`. This is the most complex query change. The current query at lines 66-140 builds `ChatMessage` structs from rows — you need to either:
+- [x] Task: Add `#[serde(default)] pub attachments: Vec<AttachmentMeta>` to `ChatMessage` in `src/messages.rs`. The `#[serde(default)]` ensures backward compatibility — existing messages without attachments will deserialize with an empty vec.
+- [x] Task: Add the same field to the frontend's `ChatMessage` in `frontend/src/types.rs`: `#[serde(default)] pub attachments: Vec<AttachmentMeta>`. Also add the `AttachmentMeta` struct to `frontend/src/types.rs` (duplicated from backend — this is intentional since frontend and backend are separate crates).
+- [x] Task: Update the `get_messages` function in `src/db/messages.rs` to LEFT JOIN the `attachments` table and populate the `attachments` Vec on each `ChatMessage`. This is the most complex query change. The current query at lines 66-140 builds `ChatMessage` structs from rows — you need to either:
   - (Preferred) Do a second query per batch: after fetching messages, do `SELECT * FROM attachments WHERE message_id = ANY($1)` with the message IDs, then group by message_id and attach to the right ChatMessage. This avoids complex JOIN/grouping logic.
   - Or use a LEFT JOIN with aggregation.
   Choose whichever is simpler. Update existing message query tests to verify attachments are included.
 
 ### 1.6 Conductor - User Manual Verification 'Phase 1'
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Database Schema and Repository Layer' (Protocol in workflow.md). Verify: migration runs cleanly, all repository tests pass, `ChatMessage` serialization with attachments works (write a small test that serializes/deserializes a `ChatMessage` with and without attachments).
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Database Schema and Repository Layer' (Protocol in workflow.md). Verify: migration runs cleanly, all repository tests pass, `ChatMessage` serialization with attachments works (write a small test that serializes/deserializes a `ChatMessage` with and without attachments).
 
 ---
 

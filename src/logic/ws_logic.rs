@@ -324,6 +324,7 @@ pub fn build_chat_message(id: Uuid, channel_id: Uuid, user_id: Uuid, username: &
         message: body,
         seq: None,
         msg_type: crate::messages::MessageType::Chat,
+        attachments: Vec::new(),
     }
 }
 

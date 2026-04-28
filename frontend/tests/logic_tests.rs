@@ -23,6 +23,7 @@ fn test_handle_message_current_channel() {
         pending: false,
         seq: None,
         msg_type: MessageType::Chat,
+        attachments: Vec::new(),
     };
     let entry = ChannelEntry::Message(msg.clone());
     
@@ -49,6 +50,7 @@ fn test_prepend_historical_messages() {
         pending: false,
         seq: Some(1),
         msg_type: MessageType::Chat,
+        attachments: Vec::new(),
     };
     let msg2 = ChatMessage {
         id: Uuid::new_v4(),
@@ -60,6 +62,7 @@ fn test_prepend_historical_messages() {
         pending: false,
         seq: Some(2),
         msg_type: MessageType::Chat,
+        attachments: Vec::new(),
     };
     let msg3 = ChatMessage {
         id: Uuid::new_v4(),
@@ -71,6 +74,7 @@ fn test_prepend_historical_messages() {
         pending: false,
         seq: Some(3),
         msg_type: MessageType::Chat,
+        attachments: Vec::new(),
     };
 
     // Add msg3 first (simulating what's already in the channel)
@@ -114,6 +118,7 @@ fn test_handle_message_other_channel() {
         pending: false,
         seq: None,
         msg_type: MessageType::Chat,
+        attachments: Vec::new(),
     };
     let entry = ChannelEntry::Message(msg);
     
@@ -240,6 +245,7 @@ fn test_pending_message_replacement_different_user_id() {
         pending: true,
         seq: None,
         msg_type: MessageType::Chat,
+        attachments: Vec::new(),
     };
     state.add_pending_message("General".to_string(), pending);
     
@@ -254,6 +260,7 @@ fn test_pending_message_replacement_different_user_id() {
         pending: false,
         seq: None,
         msg_type: MessageType::Chat,
+        attachments: Vec::new(),
     };
     let confirmed_entry = ChannelEntry::Message(confirmed_msg.clone());
     state.handle_message("General".to_string(), confirmed_entry.clone());
@@ -284,6 +291,7 @@ fn test_message_update_with_seq() {
         pending: false,
         seq: None,
         msg_type: MessageType::Chat,
+        attachments: Vec::new(),
     };
     state.handle_message("General".to_string(), ChannelEntry::Message(initial_msg));
     
@@ -297,6 +305,7 @@ fn test_message_update_with_seq() {
         pending: false,
         seq: Some(123),
         msg_type: MessageType::Chat,
+        attachments: Vec::new(),
     };
     let updated_entry = ChannelEntry::Message(updated_msg);
     state.handle_message("General".to_string(), updated_entry.clone());
@@ -328,6 +337,7 @@ fn test_prepend_historical_messages_overlapping_deduplication() {
         pending: false,
         seq: Some(1),
         msg_type: MessageType::Chat,
+        attachments: Vec::new(),
     };
     let msg2 = ChatMessage {
         id: Uuid::new_v4(),
@@ -339,6 +349,7 @@ fn test_prepend_historical_messages_overlapping_deduplication() {
         pending: false,
         seq: Some(2),
         msg_type: MessageType::Chat,
+        attachments: Vec::new(),
     };
 
     // Add msg2 first
@@ -377,6 +388,7 @@ fn test_handle_batch_message() {
         pending: false,
         seq: Some(1),
         msg_type: MessageType::Chat,
+        attachments: Vec::new(),
     };
     let msg2 = ChatMessage {
         id: Uuid::new_v4(),
@@ -388,6 +400,7 @@ fn test_handle_batch_message() {
         pending: false,
         seq: Some(2),
         msg_type: MessageType::Chat,
+        attachments: Vec::new(),
     };
     
     let batch = ChannelEntry::Batch(vec![

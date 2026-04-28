@@ -7,6 +7,8 @@ pub struct Config {
     pub nats_url: String,
     pub database_url: String,
     pub cors_origin: String,
+    pub attachment_storage_dir: String,
+    pub max_attachment_size_bytes: u64,
 }
 
 impl Default for Config {
@@ -32,6 +34,16 @@ impl Config {
         let nats_url = Self::get_value("nats_url", "nats://127.0.0.1:4222", &config_file);
         let cors_origin = Self::get_value("cors_origin", "http://localhost:8080", &config_file);
         
+        let attachment_storage_dir = Self::get_value("attachment_storage_dir", "./data/attachments", &config_file);
+        let max_attachment_size_bytes = Self::get_value("max_attachment_size_bytes", "52428800", &config_file)
+            .parse::<u64>()
+            .unwrap_or(52428800);
+
+        // Ensure attachment directory exists
+        if let Err(e) = fs::create_dir_all(&attachment_storage_dir) {
+            eprintln!("Warning: Failed to create attachment storage directory {}: {}", attachment_storage_dir, e);
+        }
+
         // Prioritize a direct DATABASE_URL environment variable
         let database_url = if let Ok(url) = env::var("DATABASE_URL") {
             url
@@ -43,6 +55,8 @@ impl Config {
             nats_url,
             database_url,
             cors_origin,
+            attachment_storage_dir,
+            max_attachment_size_bytes,
         }
     }
 
