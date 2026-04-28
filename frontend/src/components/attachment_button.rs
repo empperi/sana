@@ -67,6 +67,7 @@ pub fn attachment_button() -> Html {
                 ref={file_input_ref}
                 onchange={on_file_change} 
                 style="display: none" 
+                data-testid="file-input"
             />
             <button 
                 class={classes!("attachment-btn", if *is_uploading { "uploading" } else { "" })}

@@ -206,7 +206,7 @@ Before starting any phase, understand these critical patterns:
 ## Phase 4: E2E Tests and Polish
 
 ### 4.1 Add E2E happy-path tests
-- [ ] Task: Create `e2e/tests/attachments.spec.ts`. Write Playwright E2E tests for:
+- [x] Task: Create `e2e/tests/attachments.spec.ts`. Write Playwright E2E tests for:
   - Upload an image via the attachment button → send message → image appears inline in the chat for both sender and receiver (test cross-client delivery).
   - Upload a non-image file (e.g., `.txt`) → send message → download link appears.
   - Try to upload a file > 50MB → error message appears, no upload happens.
@@ -216,10 +216,10 @@ Before starting any phase, understand these critical patterns:
   - The Docker stack must be running with the shared volume from Phase 2.6.
 
 ### 4.2 Verify multi-replica delivery
-- [ ] Task: The E2E environment runs 2 app replicas behind nginx. Verify that a file uploaded to replica A can be downloaded from replica B (the shared volume from Phase 2.6 makes this work). This should be implicitly tested by the E2E tests (sender and receiver may hit different replicas), but verify explicitly if possible.
+- [x] Task: The E2E environment runs 2 app replicas behind nginx. Verify that a file uploaded to replica A can be downloaded from replica B (the shared volume from Phase 2.6 makes this work). This should be implicitly tested by the E2E tests (sender and receiver may hit different replicas), but verify explicitly if possible.
 
 ### 4.3 Final cleanup and compilation check
-- [ ] Task: Run `cargo clippy` and `cargo build` on the backend, `trunk build` (or equivalent) on the frontend. Fix any warnings — the project has a zero-warnings policy. Verify all unit tests pass (`cargo test`). Verify E2E tests pass.
+- [x] Task: Run `cargo clippy` and `cargo build` on the backend, `trunk build` (or equivalent) on the frontend. Fix any warnings — the project has a zero-warnings policy. Verify all unit tests pass (`cargo test`). Verify E2E tests pass.
 
 ### 4.4 Conductor - User Manual Verification 'Phase 4'
-- [ ] Task: Conductor - User Manual Verification 'Phase 4: E2E Tests and Polish' (Protocol in workflow.md). Full end-to-end walkthrough: register two users, one sends a message with an image attachment, the other sees it rendered inline. Download works. Error cases handled.
+- [x] Task: Conductor - User Manual Verification 'Phase 4: E2E Tests and Polish' (Protocol in workflow.md). Full end-to-end walkthrough: register two users, one sends a message with an image attachment, the other sees it rendered inline. Download works. Error cases handled.
