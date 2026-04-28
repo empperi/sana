@@ -6,7 +6,7 @@ use tower_http::services::{ServeDir, ServeFile};
 use tower_http::cors::CorsLayer;
 use axum::http::{HeaderValue, Method};
 use crate::state::CombinedState;
-use crate::{ws, auth, channels};
+use crate::{ws, auth, channels, attachments};
 
 pub fn create_router(combined_state: CombinedState) -> Router {
     let cors = CorsLayer::new()
@@ -20,6 +20,7 @@ pub fn create_router(combined_state: CombinedState) -> Router {
         .route("/ws", get(ws::ws_handler))
         .nest("/api/auth", auth::router())
         .nest("/api/channels", channels::router())
+        .nest("/api/attachments", attachments::router())
         .nest_service("/", 
             ServeDir::new("frontend/dist")
                 .not_found_service(ServeFile::new("frontend/dist/index.html"))

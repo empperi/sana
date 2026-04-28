@@ -93,7 +93,7 @@ Before starting any phase, understand these critical patterns:
   ```
   - `upload_attachment` handler: Extract `UserSession` (authentication), extract `Multipart` form data, read the file field, call the service layer's `upload_attachment`, return JSON with `AttachmentMeta`.
   - `download_attachment` handler: Extract `UserSession` (authentication), extract path param `id: Uuid`, call service layer's `get_attachment_for_download`, return the file bytes with appropriate `Content-Type` and `Content-Disposition` headers.
-- [ ] Task: Register the new router in `src/router.rs` by adding `.nest("/api/attachments", attachments::router())` — place it next to the existing `/api/auth` and `/api/channels` nests. Add `use crate::attachments;` to the imports.
+- [x] Task: Register the new router in `src/router.rs` by adding `.nest("/api/attachments", attachments::router())` — place it next to the existing `/api/auth` and `/api/channels` nests. Add `use crate::attachments;` to the imports.
 
 ### 2.3 Write API endpoint tests
 - [ ] Task: Create `tests/attachment_api_tests.rs`. Write tests for:
@@ -134,7 +134,7 @@ Before starting any phase, understand these critical patterns:
   ```
 
 ### 2.7 Conductor - User Manual Verification 'Phase 2'
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Backend Upload/Download API and NATS Integration' (Protocol in workflow.md). Verify: upload a file via curl/Postman, download it back, send a message with attachment_ids via STOMP, confirm the NATS consumer links the attachment to the message in the DB. All API tests pass. No compiler warnings.
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Backend Upload/Download API and NATS Integration' (Protocol in workflow.md). Verify: upload a file via curl/Postman, download it back, send a message with attachment_ids via STOMP, confirm the NATS consumer links the attachment to the message in the DB. All API tests pass. No compiler warnings.
 
 ---
 

@@ -122,7 +122,8 @@ fn test_build_chat_message() {
         channel_id,
         user_id,
         username,
-        body.to_string()
+        body.to_string(),
+        Vec::new()
     );
     
     assert_eq!(msg.id, msg_id);

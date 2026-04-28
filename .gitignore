@@ -35,3 +35,5 @@ gha-creds-*.json
 bug.png
 
 logs.txt
+
+/data/

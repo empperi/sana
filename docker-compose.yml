@@ -33,6 +33,9 @@ services:
       - DATABASE_URL=postgres://sana_user:sana_password@db:5432/sana_db
       - COOKIE_KEY=${COOKIE_KEY}
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:8080}
+      - ATTACHMENT_STORAGE_DIR=/app/data/attachments
+    volumes:
+      - attachment-data:/app/data/attachments
 
   nats:
     image: nats:latest
@@ -77,3 +80,4 @@ services:
 
 volumes:
   pgdata:
+  attachment-data:
