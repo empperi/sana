@@ -70,6 +70,7 @@ pub fn attachment_button() -> Html {
                 data-testid="file-input"
             />
             <button 
+                type="button"
                 class={classes!("attachment-btn", if *is_uploading { "uploading" } else { "" })}
                 onclick={on_button_click}
                 disabled={*is_uploading}
