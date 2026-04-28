@@ -47,7 +47,7 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
         if old_channel != &props.current_channel && old_was_at_bottom {
             if let Some(last_entry) = old_msgs.last() {
                 let entry_id = match last_entry {
-                    ChannelEntry::Message(m) => Some(m.id),
+                    ChannelEntry::Message(m) if !m.pending => Some(m.id),
                     ChannelEntry::UserJoined { id, .. } => Some(*id),
                     _ => None,
                 };
