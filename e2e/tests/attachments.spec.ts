@@ -52,9 +52,12 @@ test.describe('File Attachments', () => {
     await pageB.getByTestId('auth-submit').click();
     await expect(pageB).toHaveURL(/\/$/);
     
+    const responsePromise = pageB.waitForResponse(r => r.url().includes('/api/channels/unjoined'));
     await pageB.getByTestId('browse-channels-button').click();
+    await responsePromise;
+
     await pageB.getByTestId('search-channels-input').fill(channelName);
-    await pageB.getByTestId('join-channel-button').click();
+    await pageB.getByTestId('unjoined-channel-item').filter({ hasText: channelName }).getByTestId('join-channel-button').click();
     await expect(pageB.getByTestId('chat-header')).toContainText(`# ${channelName}`);
 
     // 3. User A uploads an image
