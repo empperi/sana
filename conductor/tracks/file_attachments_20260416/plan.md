@@ -141,22 +141,22 @@ Before starting any phase, understand these critical patterns:
 ## Phase 3: Frontend State, Components, and Upload Integration
 
 ### 3.1 Add AttachmentMeta type and update ChatMessage on frontend
-- [ ] Task: If not already done in Phase 1.5, ensure `frontend/src/types.rs` has the `AttachmentMeta` struct and `ChatMessage` includes `#[serde(default)] pub attachments: Vec<AttachmentMeta>`. Verify that existing message deserialization still works by running the frontend build (`trunk build` or equivalent).
+- [x] Task: If not already done in Phase 1.5, ensure `frontend/src/types.rs` has the `AttachmentMeta` struct and `ChatMessage` includes `#[serde(default)] pub attachments: Vec<AttachmentMeta>`. Verify that existing message deserialization still works by running the frontend build (`trunk build` or equivalent).
 
 ### 3.2 Add attachment state and actions to ChatState
-- [ ] Task: In `frontend/src/logic.rs`, add new `ChatAction` variants:
+- [x] Task: In `frontend/src/logic.rs`, add new `ChatAction` variants:
   - `AddPendingAttachment(AttachmentMeta)` — adds an uploaded attachment to a pending list for the currently composed message.
   - `RemovePendingAttachment(Uuid)` — removes a pending attachment by ID (user cancelled before sending).
   - `ClearPendingAttachments` — clears all pending attachments after message is sent.
   - `SetAttachmentError(Option<String>)` — sets/clears an error message (e.g., "File exceeds 50MB limit").
-- [ ] Task: In `ChatState` (defined in `frontend/src/logic.rs`), add fields:
+- [x] Task: In `ChatState` (defined in `frontend/src/logic.rs`), add fields:
   - `pub pending_attachments: Vec<AttachmentMeta>` — attachments uploaded for the message being composed.
   - `pub attachment_error: Option<String>` — error message to display.
-- [ ] Task: Implement the reducer arms for the new actions in `frontend/src/state.rs` (in the `Reducible` impl). Follow the existing pattern of delegating to methods on `ChatState`.
-- [ ] Task: Write unit tests for the new reducer logic in a test file. Test that dispatching `AddPendingAttachment` adds to the list, `RemovePendingAttachment` removes by ID, `ClearPendingAttachments` empties the list, etc.
+- [x] Task: Implement the reducer arms for the new actions in `frontend/src/state.rs` (in the `Reducible` impl). Follow the existing pattern of delegating to methods on `ChatState`.
+- [x] Task: Write unit tests for the new reducer logic in a test file. Test that dispatching `AddPendingAttachment` adds to the list, `RemovePendingAttachment` removes by ID, `ClearPendingAttachments` empties the list, etc.
 
 ### 3.3 Implement attachment upload service
-- [ ] Task: Create `frontend/src/services/attachment.rs` and register in `frontend/src/services/mod.rs`. This module handles the HTTP upload call:
+- [x] Task: Create `frontend/src/services/attachment.rs` and register in `frontend/src/services/mod.rs`. This module handles the HTTP upload call:
   - `pub async fn upload_file(file: web_sys::File) -> Result<AttachmentMeta, String>`:
     1. Check `file.size()` against 50MB limit. Return error string if exceeded (this is the client-side pre-check).
     2. Read the file into bytes using `gloo::file::FileReadFuture` or equivalent.
@@ -165,38 +165,38 @@ Before starting any phase, understand these critical patterns:
   - This function is called from business logic (not from components directly). The calling code dispatches `AddPendingAttachment` on success or `SetAttachmentError` on failure.
 
 ### 3.4 Implement attachment button component
-- [ ] Task: Create `frontend/src/components/attachment_button.rs` and register in `frontend/src/components/mod.rs`. This is a small component that renders a paperclip icon button. When clicked, it opens a hidden `<input type="file">` element. When a file is selected:
+- [x] Task: Create `frontend/src/components/attachment_button.rs` and register in `frontend/src/components/mod.rs`. This is a small component that renders a paperclip icon button. When clicked, it opens a hidden `<input type="file">` element. When a file is selected:
   1. Dispatch the upload via the business logic layer (spawn an async task that calls the upload service, then dispatches the appropriate `ChatAction`).
   2. While uploading, optionally show a loading indicator.
   - The component reads `pending_attachments` and `attachment_error` from `ChatStateContext` to display pending files and errors.
   - Use `data-testid="attachment-button"` on the button for E2E testing.
 
 ### 3.5 Implement drag-and-drop and paste handlers
-- [ ] Task: In the chat input area component (likely `frontend/src/components/chat_window.rs`), add:
+- [x] Task: In the chat input area component (likely `frontend/src/components/chat_window.rs`), add:
   - **Drag-and-drop:** Add `ondragover` (prevent default to allow drop) and `ondrop` event handlers on the chat area container. On drop, extract files from the `DataTransfer`, trigger the same upload logic as the button.
   - **Clipboard paste:** Add `onpaste` event handler on the message input. On paste, check `ClipboardEvent.clipboardData().files()`. If files are present, trigger upload. If only text, let the default paste behavior proceed.
   - Use `data-testid="chat-area"` on the drop target for E2E testing.
   - Both handlers must go through the same business logic path as the button (dispatch actions, call upload service).
 
 ### 3.6 Wire attachments into message sending
-- [ ] Task: Update the message send logic. Currently when the user sends a message, a STOMP SEND frame is constructed with the message text as the body. Change this so:
+- [x] Task: Update the message send logic. Currently when the user sends a message, a STOMP SEND frame is constructed with the message text as the body. Change this so:
   1. If `pending_attachments` is non-empty, construct a JSON body: `{"message": "<text>", "attachment_ids": ["<uuid1>", ...]}` instead of plain text.
   2. After sending, dispatch `ClearPendingAttachments`.
   3. Find where the STOMP SEND frame is constructed in the frontend (likely in `frontend/src/services/websocket.rs` or `frontend/src/stomp.rs`) and update accordingly.
   - **Backward compatibility:** If there are no attachments, you may still send plain text OR always send JSON. Choose one and make sure the backend (Phase 2.5) handles it consistently.
 
 ### 3.7 Implement inline attachment renderers
-- [ ] Task: Create `frontend/src/components/attachment_renderer.rs`. This component takes a `Vec<AttachmentMeta>` as a prop and renders each attachment inline based on its `mime_type`:
+- [x] Task: Create `frontend/src/components/attachment_renderer.rs`. This component takes a `Vec<AttachmentMeta>` as a prop and renders each attachment inline based on its `mime_type`:
   - `image/*` → `<img>` tag with `src="/api/attachments/{id}"`, reasonable max-width styling.
   - `video/*` → `<video controls>` tag with `<source src="/api/attachments/{id}">`.
   - `audio/*` → `<audio controls>` tag with `<source src="/api/attachments/{id}">`.
   - `application/pdf` → `<iframe>` or `<embed>` with `src="/api/attachments/{id}"` and fixed height.
   - Everything else → a download link: `<a href="/api/attachments/{id}" download>{original_filename}</a>` with a file icon.
   - Use `data-testid="attachment-{id}"` on each rendered attachment for E2E testing.
-- [ ] Task: Integrate the `AttachmentRenderer` component into the existing message display component (wherever individual `ChatMessage` items are rendered). If `message.attachments` is non-empty, render the `AttachmentRenderer` below the message text.
+- [x] Task: Integrate the `AttachmentRenderer` component into the existing message display component (wherever individual `ChatMessage` items are rendered). If `message.attachments` is non-empty, render the `AttachmentRenderer` below the message text.
 
 ### 3.8 Display pending attachments in compose area
-- [ ] Task: In the message compose area (near the input field), render a list of `pending_attachments` from state. Each item shows the filename and a remove button (dispatches `RemovePendingAttachment(id)`). Also display `attachment_error` as a red error message if set. Use `data-testid="pending-attachment-{id}"` and `data-testid="attachment-error"` for E2E testing.
+- [x] Task: In the message compose area (near the input field), render a list of `pending_attachments` from state. Each item shows the filename and a remove button (dispatches `RemovePendingAttachment(id)`). Also display `attachment_error` as a red error message if set. Use `data-testid="pending-attachment-{id}"` and `data-testid="attachment-error"` for E2E testing.
 
 ### 3.9 Conductor - User Manual Verification 'Phase 3'
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Frontend State, Components, and Upload Integration' (Protocol in workflow.md). Verify: open the app in a browser, attach a file via button click, see it appear as pending, send the message, see the attachment rendered inline. Test drag-and-drop and paste. Try uploading a file > 50MB and verify the error message. No compiler warnings.

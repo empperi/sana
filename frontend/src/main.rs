@@ -234,16 +234,29 @@ fn handle_send_message(
         pending: true,
         seq: None,
         msg_type: MessageType::Chat,
-        attachments: Vec::new(),
+        attachments: state.pending_attachments.clone(),
+    };
+
+    let payload_str = if state.pending_attachments.is_empty() {
+        text.clone()
+    } else {
+        let attachment_ids: Vec<Uuid> = state.pending_attachments.iter().map(|a| a.id).collect();
+        serde_json::json!({
+            "message": text,
+            "attachment_ids": attachment_ids
+        }).to_string()
     };
 
     dispatch.emit(ChatAction::AddPendingMessage { channel: channel_name.clone(), msg: pending_msg });
+    dispatch.emit(ChatAction::ClearPendingAttachments);
+
     if let Some(service) = &*ws_service.borrow() {
         let service: &Rc<WebSocketService> = service;
-        service.send(stomp::create_send_frame(&channel_name, &message_id.to_string(), &text));
+        service.send(stomp::create_send_frame(&channel_name, &message_id.to_string(), &payload_str));
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_app(
     chat_state: &ChatState,
     on_switch_channel: Callback<String>,

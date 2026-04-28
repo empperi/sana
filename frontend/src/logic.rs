@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use crate::types::{ChatMessage, Channel, ChannelEntry};
+use crate::types::{ChatMessage, Channel, ChannelEntry, AttachmentMeta};
 use crate::services::websocket::{WebSocketService, ConnectionStatus, StompClient};
 use crate::stomp;
 use uuid::Uuid;
@@ -110,6 +110,8 @@ pub struct ChatState {
     pub unread_channels: HashSet<String>,
     pub subscribed_channels: HashSet<String>,
     pub connection_status: ConnectionStatus,
+    pub pending_attachments: Vec<AttachmentMeta>,
+    pub attachment_error: Option<String>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -126,6 +128,16 @@ pub enum ChatAction {
     AddPendingMessage { channel: String, msg: ChatMessage },
     AddSubscribedChannel(String),
     ClearSubscriptions,
+    AddPendingAttachment(AttachmentMeta),
+    RemovePendingAttachment(Uuid),
+    ClearPendingAttachments,
+    SetAttachmentError(Option<String>),
+}
+
+impl Default for ChatState {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ChatState {
@@ -143,6 +155,8 @@ impl ChatState {
             unread_channels: HashSet::new(),
             subscribed_channels: HashSet::new(),
             connection_status: ConnectionStatus::Disconnected,
+            pending_attachments: Vec::new(),
+            attachment_error: None,
         }
     }
 
@@ -151,20 +165,17 @@ impl ChatState {
             ChannelEntry::Metadata { last_read_message_id } => {
                 self.last_read_message_map.insert(channel.clone(), last_read_message_id);
                 self.update_read_index(&channel);
-                return;
             }
             ChannelEntry::Batch(entries) => {
                 for e in entries {
                     self.handle_single_entry(&channel, e);
                 }
-                return;
             }
             ChannelEntry::ReadMarker { user_id, message_id } => {
                 if user_id == self.user_id {
                     self.last_read_message_map.insert(channel.clone(), Some(message_id));
                     self.update_read_index(&channel);
                 }
-                return;
             }
             _ => {
                 self.handle_single_entry(&channel, entry);
@@ -218,7 +229,7 @@ impl ChatState {
     }
 
     fn handle_single_entry(&mut self, channel: &str, entry: ChannelEntry) {
-        let messages = self.messages.entry(channel.to_string()).or_insert_with(Vec::new);
+        let messages = self.messages.entry(channel.to_string()).or_default();
         
         let entry_id = match &entry {
             ChannelEntry::Message(m) => m.id,
@@ -255,7 +266,7 @@ impl ChatState {
     }
 
     pub fn prepend_historical_messages(&mut self, channel: String, mut history: Vec<ChannelEntry>) {
-        let messages = self.messages.entry(channel.clone()).or_insert_with(Vec::new);
+        let messages = self.messages.entry(channel.clone()).or_default();
         
         // The REST API returns messages in DESC order (newest of history first).
         // We want them in ASC order in our state.
@@ -288,7 +299,7 @@ impl ChatState {
         // Since history is older, they go to the beginning.
         // We assume 'history' is already sorted chronologically (oldest to newest among the batch).
         if !new_entries.is_empty() {
-            new_entries.extend(messages.drain(..));
+            new_entries.append(messages);
             *messages = new_entries;
             self.update_read_index(&channel);
         }
@@ -359,7 +370,23 @@ impl ChatState {
     }
 
     pub fn add_pending_message(&mut self, channel: String, msg: ChatMessage) {
-        let messages = self.messages.entry(channel).or_insert_with(Vec::new);
+        let messages = self.messages.entry(channel).or_default();
         messages.push(ChannelEntry::Message(msg));
+    }
+
+    pub fn add_pending_attachment(&mut self, attachment: AttachmentMeta) {
+        self.pending_attachments.push(attachment);
+    }
+
+    pub fn remove_pending_attachment(&mut self, id: Uuid) {
+        self.pending_attachments.retain(|a| a.id != id);
+    }
+
+    pub fn clear_pending_attachments(&mut self) {
+        self.pending_attachments.clear();
+    }
+
+    pub fn set_attachment_error(&mut self, error: Option<String>) {
+        self.attachment_error = error;
     }
 }
