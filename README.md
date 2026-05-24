@@ -81,11 +81,12 @@ Access the application at `http://localhost:8080`. The load balancer (NGINX) wil
 
 ## Agentic Development
 
-This project is optimized for agentic development with both **Gemini CLI** and **Claude Code**. Core operating principles, coding standards, and architecture guidelines are defined in [AGENTS.md](AGENTS.md) and loaded automatically by both tools.
+This project is optimized for agentic development with **Gemini CLI**, **Claude Code**, and **OpenCode**. Core operating principles, coding standards, and architecture guidelines are defined in [AGENTS.md](AGENTS.md) and loaded automatically by all tools.
 
 - **[AGENTS.md](AGENTS.md)**: Shared operating principles, coding style, and architecture guidelines.
 - **[GEMINI.md](GEMINI.md)**: Gemini-specific configuration (loaded automatically by Gemini CLI).
 - **[CLAUDE.md](CLAUDE.md)**: Claude-specific configuration (loaded automatically by Claude Code).
+- **[.opencode/](.opencode/)**: OpenCode-specific configuration (loaded automatically by OpenCode). OpenCode loads `AGENTS.md` directly — no separate `OPENCODE.md` is needed.
 
 ### Activating Claude Code
 
