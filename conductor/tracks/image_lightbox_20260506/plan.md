@@ -22,7 +22,7 @@ Before starting any phase, understand these patterns:
 
 ---
 
-## Phase 1: Global State and Actions [checkpoint: 3d101e7]
+## Phase 1: Global State and Actions [checkpoint: faa206a]
 
 ### 1.1 Add lightbox state fields to `ChatState`
 - [x] Task: In `frontend/src/logic.rs`, immediately above the `ChatState` struct definition (around line 99), add a
