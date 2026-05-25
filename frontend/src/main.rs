@@ -51,6 +51,7 @@ pub fn chat_app() -> Html {
 
     let is_join_modal_open = use_state(|| false);
     let is_modal_create_mode = use_state(|| false);
+    let is_mobile_sidebar_open = use_state(|| false);
 
     let ws_service = use_chat_websocket(auth_check_done);
 
@@ -58,8 +59,10 @@ pub fn chat_app() -> Html {
 
     let on_switch_channel = {
         let dispatch = ctx.dispatch.clone();
+        let is_mobile_sidebar_open = is_mobile_sidebar_open.clone();
         Callback::from(move |channel: String| {
             dispatch.emit(ChatAction::SelectChannel(channel));
+            is_mobile_sidebar_open.set(false);
         })
     };
 
@@ -145,8 +148,6 @@ pub fn chat_app() -> Html {
             });
         })
     };
-
-    let is_mobile_sidebar_open = use_state(|| false);
 
     let on_toggle_sidebar = {
         let is_mobile_sidebar_open = is_mobile_sidebar_open.clone();
@@ -283,7 +284,7 @@ fn render_app(
         <div class="app-container">
             <div class="mini-sidebar">
                 <img src="/assets/Sana_logo.webp" alt="Sana Logo" class="mini-logo" />
-                <button class="hamburger-menu" onclick={let on_toggle = on_toggle_sidebar.clone(); move |_| on_toggle.emit(())}>
+                <button class="hamburger-menu" data-testid="hamburger-menu" onclick={let on_toggle = on_toggle_sidebar.clone(); move |_| on_toggle.emit(())}>
                     <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="3" y1="12" x2="21" y2="12"></line>
                         <line x1="3" y1="6" x2="21" y2="6"></line>

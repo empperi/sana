@@ -485,10 +485,10 @@ Before starting any phase, understand these patterns:
 
 ---
 
-## Phase 4: E2E Tests and Final Polish [checkpoint: ]
+## Phase 4: E2E Tests and Final Polish [checkpoint: 719bec2]
 
 ### 4.1 Write E2E happy-path tests
-- [ ] Task: Create `e2e/tests/image_lightbox.spec.ts`. Reuse the upload pattern from
+- [x] Task: Create `e2e/tests/image_lightbox.spec.ts`. Reuse the upload pattern from
   `e2e/tests/attachments.spec.ts`. Selectors must use `data-testid` exclusively. Tests:
   1. **Open and close via X button** (primary happy path):
      - Login as user A. Upload a small JPEG (reuse the helper / pattern from `attachments.spec.ts` lines that
@@ -511,13 +511,13 @@ Before starting any phase, understand these patterns:
      equals the URL before opening (no leftover `#lightbox`).
 
 ### 4.2 Verify mobile viewport behaviour
-- [ ] Task: Add a fifth test in the same spec file that calls
+- [x] Task: Add a fifth test in the same spec file that calls
   `await page.setViewportSize({ width: 390, height: 844 })` before uploading, then runs the open + close-via-X
   flow. Assert the close button is visible and clickable (`await expect(page.getByTestId('lightbox-close-button'))
   .toBeVisible()`).
 
 ### 4.3 Run E2E tests
-- [ ] Task: Ensure the Docker stack is running:
+- [x] Task: Ensure the Docker stack is running:
   ```
   docker compose -f docker-compose.e2e.yml --project-name sana-e2e up --wait
   ```
@@ -528,7 +528,7 @@ Before starting any phase, understand these patterns:
   All five tests must pass. **Always** use `--reporter=list` (the default HTML reporter hangs on a server).
 
 ### 4.4 Final build and lint gate
-- [ ] Task: Run the full quality gate from the project root:
+- [x] Task: Run the full quality gate from the project root:
   - `cargo test` (backend — confirms nothing else broke)
   - `cargo clippy -- -D warnings` (zero warnings required)
   - `cd frontend && cargo test` (frontend unit tests, including the four lightbox tests from Phase 1.5)
@@ -538,7 +538,7 @@ Before starting any phase, understand these patterns:
   Fix any issues found. Do not mark the track complete until all checks pass.
 
 ### 4.5 Conductor — User Manual Verification 'Phase 4'
-- [ ] Task: Conductor — User Manual Verification 'Phase 4: E2E Tests and Final Polish' (Protocol in workflow.md).
+- [x] Task: Conductor — User Manual Verification 'Phase 4: E2E Tests and Final Polish' (Protocol in workflow.md).
   Full walkthrough:
   - Two browser windows open to the app. User A sends a message with an image. User B sees it inline and can
     open the lightbox.

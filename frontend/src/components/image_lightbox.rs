@@ -7,19 +7,21 @@ use web_sys::{HtmlElement, KeyboardEvent, MouseEvent};
 use crate::logic::ChatAction;
 use crate::state::ChatStateContext;
 
-fn close_with_history_pop(
-    dispatch: &Callback<ChatAction>,
-    history_pushed: &Rc<RefCell<bool>>,
-) {
+fn pop_history_if_needed(history_pushed: &Rc<RefCell<bool>>) {
     let was_pushed = *history_pushed.borrow();
     *history_pushed.borrow_mut() = false;
-
     if was_pushed {
         if let Some(history) = web_sys::window().and_then(|w| w.history().ok()) {
             let _ = history.back();
         }
     }
+}
 
+fn close_with_history_pop(
+    dispatch: &Callback<ChatAction>,
+    history_pushed: &Rc<RefCell<bool>>,
+) {
+    pop_history_if_needed(history_pushed);
     dispatch.emit(ChatAction::CloseImageLightbox);
 }
 
@@ -78,26 +80,25 @@ fn setup_popstate_listener(
     })
 }
 
-fn handle_cleanup(
-    is_open: bool,
-    prev_body_overflow: &Option<String>,
-    previous_focus: &Rc<RefCell<Option<web_sys::Element>>>,
-    history_pushed: &Rc<RefCell<bool>>,
-) {
-    if is_open {
-        restore_body_scroll(prev_body_overflow);
-        restore_focus(previous_focus);
+fn push_history_state(window: &web_sys::Window, history_pushed: &Rc<RefCell<bool>>) {
+    let _ = window.history().ok().map(|h| h.push_state_with_url(&JsValue::NULL, "", Some("")));
+    *history_pushed.borrow_mut() = true;
+}
 
-        let was_pushed = *history_pushed.borrow();
-        if was_pushed {
-            if let Some(window) = web_sys::window() {
-                if let Ok(history) = window.history() {
-                    let _ = history.back();
-                }
-            }
-            *history_pushed.borrow_mut() = false;
-        }
-    }
+fn initialize_lightbox_effects(
+    dispatch: Callback<ChatAction>, hp: Rc<RefCell<bool>>,
+    prev_focus: Rc<RefCell<Option<web_sys::Element>>>, close_btn: NodeRef,
+) -> Option<(gloo_events::EventListener, gloo_events::EventListener, Option<String>)> {
+    let win = web_sys::window()?;
+    *prev_focus.borrow_mut() = win.document()?.active_element();
+    let prev_overflow = lock_body_scroll();
+    push_history_state(&win, &hp);
+    close_btn.cast::<HtmlElement>().map(|btn| btn.focus());
+    Some((
+        setup_keydown_listener(&win, dispatch.clone(), hp.clone()),
+        setup_popstate_listener(&win, dispatch, hp),
+        prev_overflow
+    ))
 }
 
 #[function_component(ImageLightbox)]
@@ -117,32 +118,19 @@ pub fn image_lightbox() -> Html {
         let is_open = lightbox.is_some();
 
         use_effect_with(is_open, move |&is_open| {
-            let mut keydown_listener: Option<gloo_events::EventListener> = None;
-            let mut popstate_listener: Option<gloo_events::EventListener> = None;
-            let mut prev_body_overflow: Option<String> = None;
-
-            if is_open {
-                let window = web_sys::window().expect("no window");
-                let document = window.document().expect("no document");
-                
-                *previous_focus.borrow_mut() = document.active_element();
-                prev_body_overflow = lock_body_scroll();
-
-                let _ = window.history().unwrap().push_state_with_url(&JsValue::NULL, "", Some(""));
-                *history_pushed.borrow_mut() = true;
-
-                if let Some(btn) = close_button_ref.cast::<HtmlElement>() {
-                    let _ = btn.focus();
-                }
-
-                keydown_listener = Some(setup_keydown_listener(&window, dispatch.clone(), history_pushed.clone()));
-                popstate_listener = Some(setup_popstate_listener(&window, dispatch.clone(), history_pushed.clone()));
-            }
+            let hp_clean = history_pushed.clone();
+            let pf_clean = previous_focus.clone();
+            
+            let active = is_open.then(|| {
+                initialize_lightbox_effects(dispatch, history_pushed, previous_focus, close_button_ref)
+            }).flatten();
 
             move || {
-                drop(keydown_listener);
-                drop(popstate_listener);
-                handle_cleanup(is_open, &prev_body_overflow, &previous_focus, &history_pushed);
+                if let Some((_kd, _ps, prev_overflow)) = active {
+                    restore_body_scroll(&prev_overflow);
+                    restore_focus(&pf_clean);
+                    pop_history_if_needed(&hp_clean);
+                }
             }
         });
     }
