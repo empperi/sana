@@ -102,7 +102,7 @@ Before starting any phase, understand these patterns:
 
 ---
 
-## Phase 2: `ImageLightbox` Component and Styling [checkpoint: 4204172]
+## Phase 2: `ImageLightbox` Component and Styling [checkpoint: 0dd0716]
 
 ### 2.1 Create SCSS styles for the lightbox
 - [x] Task: In `frontend/style.scss`, append the following block at the **end of the file** (after all existing
