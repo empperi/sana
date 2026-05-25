@@ -874,3 +874,66 @@ body {
     from { opacity: 0; }
     to { opacity: 1; }
 }
+
+// Image Lightbox
+.image-lightbox-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.85);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1100; // Above .modal-overlay (1000)
+    cursor: zoom-out;
+
+    .image-lightbox-container {
+        position: relative;
+        display: inline-flex; // Shrinks to image size
+        cursor: default;      // Reset cursor inside container
+        max-width: 90vw;
+        max-height: 90vh;
+    }
+
+    .image-lightbox-img {
+        display: block;
+        max-width: 90vw;
+        max-height: 90vh;
+        object-fit: contain;
+        border-radius: 4px;
+        box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+    }
+
+    .image-lightbox-close {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background-color: rgba(0, 0, 0, 0.7);
+        border: 2px solid rgba(255, 255, 255, 0.8);
+        color: white;
+        font-size: 1.1em;
+        line-height: 1;
+        cursor: pointer; // Explicit — overrides parent's zoom-out
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1101;
+        transition: background-color 0.15s ease;
+
+        &:hover {
+            background-color: rgba(0, 0, 0, 0.9);
+        }
+
+        &:focus-visible {
+            outline: 2px solid white;
+            outline-offset: 2px;
+        }
+    }
+}
+
+// Make inline attachment images show a pointer to invite clicking
+.attachment-item img {
+    cursor: zoom-in;
+}

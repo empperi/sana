@@ -11,6 +11,7 @@ use frontend::components::sidebar::Sidebar;
 use frontend::components::chat_window::ChatWindow;
 use frontend::components::auth::{Login, Register};
 use frontend::components::join_channel_modal::JoinChannelModal;
+use frontend::components::image_lightbox::ImageLightbox;
 use frontend::services::websocket::{WebSocketService, StompClient};
 use frontend::types::{ChatMessage, ChannelEntry, MessageType};
 use frontend::logic::{self, ChatState, ChatAction};
@@ -316,6 +317,7 @@ fn render_app(
                 on_join={on_join_channel}
                 on_create={on_create_channel}
             />
+            <ImageLightbox />
         </div>
     }
 }

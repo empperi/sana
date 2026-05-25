@@ -102,10 +102,10 @@ Before starting any phase, understand these patterns:
 
 ---
 
-## Phase 2: `ImageLightbox` Component and Styling [checkpoint: ]
+## Phase 2: `ImageLightbox` Component and Styling [checkpoint: 4204172]
 
 ### 2.1 Create SCSS styles for the lightbox
-- [ ] Task: In `frontend/style.scss`, append the following block at the **end of the file** (after all existing
+- [x] Task: In `frontend/style.scss`, append the following block at the **end of the file** (after all existing
   rules — placement at the end avoids ordering surprises with media queries):
   ```scss
   // Image Lightbox
@@ -175,7 +175,7 @@ Before starting any phase, understand these patterns:
   prevents clipping off-screen on small viewports and matches the spec wording ("upper-left corner of the image").
 
 ### 2.2 Create the `ImageLightbox` component — file scaffold
-- [ ] Task: Create `frontend/src/components/image_lightbox.rs` with the imports below. Read carefully — every
+- [x] Task: Create `frontend/src/components/image_lightbox.rs` with the imports below. Read carefully — every
   detail matters:
   ```rust
   use yew::prelude::*;
@@ -189,7 +189,7 @@ Before starting any phase, understand these patterns:
   ```
 
 ### 2.3 Component body — read context and short-circuit when closed
-- [ ] Task: Inside `image_lightbox.rs`, define the function component. The component takes **no props**:
+- [x] Task: Inside `image_lightbox.rs`, define the function component. The component takes **no props**:
   ```rust
   #[function_component(ImageLightbox)]
   pub fn image_lightbox() -> Html {
@@ -208,7 +208,7 @@ Before starting any phase, understand these patterns:
   ```
 
 ### 2.4 The `use_effect_with` that installs/uninstalls side effects
-- [ ] Task: Still in the component, add the effect. The dependency is `lightbox.is_some()` (a `bool`) so the
+- [x] Task: Still in the component, add the effect. The dependency is `lightbox.is_some()` (a `bool`) so the
   effect re-runs only when the lightbox transitions open ↔ closed — not when the URL/alt changes within an open
   state. (We do not currently support replacing the open image without closing first; if you ever do, the effect
   must be revisited.)
@@ -331,7 +331,7 @@ Before starting any phase, understand these patterns:
   ```
 
 ### 2.5 The shared close helper
-- [ ] Task: At module level (top of `image_lightbox.rs`, above the component fn), define:
+- [x] Task: At module level (top of `image_lightbox.rs`, above the component fn), define:
   ```rust
   fn close_with_history_pop(
       dispatch: &Callback<ChatAction>,
@@ -355,7 +355,7 @@ Before starting any phase, understand these patterns:
   twice is safe because `close_lightbox` is idempotent (verified by test 4 in Phase 1.5).
 
 ### 2.6 Render the html
-- [ ] Task: Inside the component fn (after the `use_effect_with` block), build the close handler and the html
+- [x] Task: Inside the component fn (after the `use_effect_with` block), build the close handler and the html
   output:
   ```rust
   let on_close = {
@@ -396,22 +396,19 @@ Before starting any phase, understand these patterns:
   ```
 
 ### 2.7 Verify dependencies
-- [ ] Task: Confirm `gloo-events` is already in `frontend/Cargo.toml`. If not, add it under `[dependencies]`:
-  ```toml
-  gloo-events = "0.2"
-  ```
+- [x] Task: Confirm `gloo-events` is already in `frontend/Cargo.toml`. Also, ensure that the `"CssStyleDeclaration"` feature is added to the `web-sys` dependency features list in `frontend/Cargo.toml` so Yew can interact with element styles.
   Run `cd frontend && cargo build` to verify the crate resolves.
 
 ### 2.8 Register `ImageLightbox` in `mod.rs` and mount inside `app-container`
-- [ ] Task: In `frontend/src/components/mod.rs`, add `pub mod image_lightbox;` to the existing list.
-- [ ] Task: In `frontend/src/main.rs`:
+- [x] Task: In `frontend/src/components/mod.rs`, add `pub mod image_lightbox;` to the existing list.
+- [x] Task: In `frontend/src/main.rs`:
   - Add `use frontend::components::image_lightbox::ImageLightbox;` near the other component imports (~line 13).
   - In `render_app` (around line 281), inside the existing `<div class="app-container">`, add `<ImageLightbox />`
     after the `<JoinChannelModal>` element but **before** the closing `</div>` of `app-container`. The component
     has no props.
 
 ### 2.9 Conductor — User Manual Verification 'Phase 2'
-- [ ] Task: Conductor — User Manual Verification 'Phase 2: ImageLightbox Component and Styling' (Protocol in
+- [x] Task: Conductor — User Manual Verification 'Phase 2: ImageLightbox Component and Styling' (Protocol in
   workflow.md). Verify:
   - `cd frontend && trunk build` succeeds.
   - `cargo clippy -p frontend -- -D warnings` produces zero warnings.
