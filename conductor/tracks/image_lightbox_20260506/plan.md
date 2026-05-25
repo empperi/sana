@@ -416,7 +416,7 @@ Before starting any phase, understand these patterns:
 
 ---
 
-## Phase 3: Wire `AttachmentRenderer` to dispatch lightbox [checkpoint: 8487ecf]
+## Phase 3: Wire `AttachmentRenderer` to dispatch lightbox [checkpoint: cbb7d8e]
 
 ### 3.1 Read `ChatStateContext` inside `AttachmentRenderer` (no prop change)
 - [x] Task: Modify `frontend/src/components/attachment_renderer.rs` as follows. **Do not change the props
