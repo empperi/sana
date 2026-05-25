@@ -1,5 +1,8 @@
 use yew::prelude::*;
 use crate::types::AttachmentMeta;
+use crate::state::ChatStateContext;
+use crate::logic::ChatAction;
+use web_sys::MouseEvent;
 
 #[derive(Properties, PartialEq)]
 pub struct AttachmentRendererProps {
@@ -8,6 +11,8 @@ pub struct AttachmentRendererProps {
 
 #[function_component(AttachmentRenderer)]
 pub fn attachment_renderer(props: &AttachmentRendererProps) -> Html {
+    let ctx = use_context::<ChatStateContext>().expect("No ChatStateContext found");
+
     if props.attachments.is_empty() {
         return html! {};
     }
@@ -19,10 +24,27 @@ pub fn attachment_renderer(props: &AttachmentRendererProps) -> Html {
                 let url = format!("/api/attachments/{}", id_str);
                 let mime = &att.mime_type;
 
+                let on_img_click = {
+                    let url_clone = url.clone();
+                    let alt_clone = att.original_filename.clone();
+                    let dispatch = ctx.dispatch.clone();
+                    Callback::from(move |_e: MouseEvent| {
+                        dispatch.emit(ChatAction::OpenImageLightbox {
+                            url: url_clone.clone(),
+                            alt: alt_clone.clone(),
+                        });
+                    })
+                };
+                let img_testid = format!("attachment-img-{}", id_str);
+
                 html! {
                     <div class="attachment-item" data-testid={format!("attachment-{}", id_str)} style="border: 1px solid #ddd; padding: 8px; border-radius: 4px; max-width: 300px;">
                         if mime.starts_with("image/") {
-                            <img src={url} alt={att.original_filename.clone()} style="max-width: 100%; max-height: 200px; display: block;" />
+                            <img src={url.clone()}
+                                 alt={att.original_filename.clone()}
+                                 data-testid={img_testid}
+                                 onclick={on_img_click}
+                                 style="max-width: 100%; max-height: 200px; display: block;" />
                         } else if mime.starts_with("video/") {
                             <video controls=true src={url} style="max-width: 100%; max-height: 200px; display: block;" />
                         } else if mime.starts_with("audio/") {

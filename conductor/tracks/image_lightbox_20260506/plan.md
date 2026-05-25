@@ -416,23 +416,23 @@ Before starting any phase, understand these patterns:
 
 ---
 
-## Phase 3: Wire `AttachmentRenderer` to dispatch lightbox [checkpoint: ]
+## Phase 3: Wire `AttachmentRenderer` to dispatch lightbox [checkpoint: 8487ecf]
 
 ### 3.1 Read `ChatStateContext` inside `AttachmentRenderer` (no prop change)
-- [ ] Task: Modify `frontend/src/components/attachment_renderer.rs` as follows. **Do not change the props
+- [x] Task: Modify `frontend/src/components/attachment_renderer.rs` as follows. **Do not change the props
   signature** — `AttachmentRenderer` continues to accept only `attachments`. Instead, read the context inside the
   function (this matches the existing pattern in `attachment_button.rs:10`).
-- [ ] Task: Add imports at the top:
+- [x] Task: Add imports at the top:
   ```rust
   use crate::state::ChatStateContext;
   use crate::logic::ChatAction;
   use web_sys::MouseEvent;
   ```
-- [ ] Task: At the start of `attachment_renderer`, add:
+- [x] Task: At the start of `attachment_renderer`, add:
   ```rust
   let ctx = use_context::<ChatStateContext>().expect("No ChatStateContext found");
   ```
-- [ ] Task: Inside the `if mime.starts_with("image/")` branch, replace the bare `<img>` with one that has an
+- [x] Task: Inside the `if mime.starts_with("image/")` branch, replace the bare `<img>` with one that has an
   `onclick` handler and a unique `data-testid`. The clone setup mirrors the existing `id_str`/`url` pattern:
   ```rust
   let url_clone = url.clone();
@@ -454,21 +454,21 @@ Before starting any phase, understand these patterns:
        onclick={on_img_click}
        style="max-width: 100%; max-height: 200px; display: block;" />
   ```
-- [ ] Task: Leave the `video`, `audio`, `embed`, and `<a download>` branches untouched.
+- [x] Task: Leave the `video`, `audio`, `embed`, and `<a download>` branches untouched.
 
 ### 3.2 Verify context provider tree
-- [ ] Task: Confirm the rendering chain reaches `AttachmentRenderer` inside the `ChatStateProvider`:
+- [x] Task: Confirm the rendering chain reaches `AttachmentRenderer` inside the `ChatStateProvider`:
   `App` → `BrowserRouter` → `ChatStateProvider` → `Switch` → `ChatApp` → `render_app` → `ChatWindow` →
   `AttachmentRenderer`. `chat_window.rs:29` already calls `use_context::<ChatStateContext>()`, proving the
   provider is in scope. No changes needed.
 
 ### 3.3 Update existing tests if any consume `AttachmentRenderer`
-- [ ] Task: Run `grep -rn "AttachmentRenderer" frontend/tests/ frontend/src/`. If any test instantiates
+- [x] Task: Run `grep -rn "AttachmentRenderer" frontend/tests/ frontend/src/`. If any test instantiates
   `AttachmentRenderer` directly (without a `ChatStateProvider`), the test will panic at the new `use_context`
   call. Wrap such tests in a `<ChatStateProvider>` host. If no tests reference it directly, nothing to do.
 
 ### 3.4 Conductor — User Manual Verification 'Phase 3'
-- [ ] Task: Conductor — User Manual Verification 'Phase 3: Wire AttachmentRenderer' (Protocol in workflow.md).
+- [x] Task: Conductor — User Manual Verification 'Phase 3: Wire AttachmentRenderer' (Protocol in workflow.md).
   Verify in the browser:
   - Send a message with an image attachment.
   - Click the inline image — lightbox opens with the full image.
