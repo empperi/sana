@@ -485,7 +485,7 @@ Before starting any phase, understand these patterns:
 
 ---
 
-## Phase 4: E2E Tests and Final Polish [checkpoint: 719bec2]
+## Phase 4: E2E Tests and Final Polish [checkpoint: 67a0fba]
 
 ### 4.1 Write E2E happy-path tests
 - [x] Task: Create `e2e/tests/image_lightbox.spec.ts`. Reuse the upload pattern from
