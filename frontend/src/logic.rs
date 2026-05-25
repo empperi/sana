@@ -96,6 +96,12 @@ pub async fn join_channel(
     finalize_channel_join(channel, &dispatch, &ws_service, &on_success);
 }
 
+#[derive(Clone, PartialEq, Debug, Default)]
+pub struct LightboxImage {
+    pub url: String,
+    pub alt: String,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct ChatState {
     pub channels: Vec<String>,
@@ -112,6 +118,7 @@ pub struct ChatState {
     pub connection_status: ConnectionStatus,
     pub pending_attachments: Vec<AttachmentMeta>,
     pub attachment_error: Option<String>,
+    pub lightbox_image: Option<LightboxImage>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -132,6 +139,8 @@ pub enum ChatAction {
     RemovePendingAttachment(Uuid),
     ClearPendingAttachments,
     SetAttachmentError(Option<String>),
+    OpenImageLightbox { url: String, alt: String },
+    CloseImageLightbox,
 }
 
 impl Default for ChatState {
@@ -157,7 +166,16 @@ impl ChatState {
             connection_status: ConnectionStatus::Disconnected,
             pending_attachments: Vec::new(),
             attachment_error: None,
+            lightbox_image: None,
         }
+    }
+
+    pub fn open_lightbox(&mut self, url: String, alt: String) {
+        self.lightbox_image = Some(LightboxImage { url, alt });
+    }
+
+    pub fn close_lightbox(&mut self) {
+        self.lightbox_image = None;
     }
 
     pub fn handle_message(&mut self, channel: String, entry: ChannelEntry) {

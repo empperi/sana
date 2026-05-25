@@ -22,10 +22,10 @@ Before starting any phase, understand these patterns:
 
 ---
 
-## Phase 1: Global State and Actions [checkpoint: ]
+## Phase 1: Global State and Actions [checkpoint: 3d101e7]
 
 ### 1.1 Add lightbox state fields to `ChatState`
-- [ ] Task: In `frontend/src/logic.rs`, immediately above the `ChatState` struct definition (around line 99), add a
+- [x] Task: In `frontend/src/logic.rs`, immediately above the `ChatState` struct definition (around line 99), add a
   new struct:
   ```rust
   #[derive(Clone, PartialEq, Debug, Default)]
@@ -34,17 +34,17 @@ Before starting any phase, understand these patterns:
       pub alt: String,
   }
   ```
-- [ ] Task: In `ChatState`, add a new field:
+- [x] Task: In `ChatState`, add a new field:
   ```rust
   pub lightbox_image: Option<LightboxImage>,
   ```
-- [ ] Task: In `ChatState::new()`, initialise the new field to `None`:
+- [x] Task: In `ChatState::new()`, initialise the new field to `None`:
   ```rust
   lightbox_image: None,
   ```
 
 ### 1.2 Add new `ChatAction` variants
-- [ ] Task: In `frontend/src/logic.rs`, add to the `ChatAction` enum (the `Default`-derived `Clone, PartialEq, Debug`
+- [x] Task: In `frontend/src/logic.rs`, add to the `ChatAction` enum (the `Default`-derived `Clone, PartialEq, Debug`
   enum at line 117):
   ```rust
   OpenImageLightbox { url: String, alt: String },
@@ -52,7 +52,7 @@ Before starting any phase, understand these patterns:
   ```
 
 ### 1.3 Implement state mutation methods
-- [ ] Task: In `frontend/src/logic.rs`, in `impl ChatState`, add two methods:
+- [x] Task: In `frontend/src/logic.rs`, in `impl ChatState`, add two methods:
   ```rust
   pub fn open_lightbox(&mut self, url: String, alt: String) {
       self.lightbox_image = Some(LightboxImage { url, alt });
@@ -67,7 +67,7 @@ Before starting any phase, understand these patterns:
   no-op.
 
 ### 1.4 Add reducer arms
-- [ ] Task: In `frontend/src/state.rs`, inside the `match action` block of `Reducible::reduce`, add arms (after
+- [x] Task: In `frontend/src/state.rs`, inside the `match action` block of `Reducible::reduce`, add arms (after
   the existing `SetAttachmentError` arm):
   ```rust
   ChatAction::OpenImageLightbox { url, alt } => {
@@ -79,7 +79,7 @@ Before starting any phase, understand these patterns:
   ```
 
 ### 1.5 Write unit tests for lightbox state
-- [ ] Task: Add tests to the **existing** `frontend/tests/state_tests.rs` (do not create a new test file —
+- [x] Task: Add tests to the **existing** `frontend/tests/state_tests.rs` (do not create a new test file —
   state-related action tests already live there; one fewer file to register). Append four tests:
   1. `test_open_image_lightbox_sets_state`: dispatch `OpenImageLightbox { url: "/api/attachments/abc".into(), alt:
      "photo.png".into() }` on a fresh `ChatState`. Assert `new_state.lightbox_image == Some(LightboxImage {
@@ -91,10 +91,10 @@ Before starting any phase, understand these patterns:
   4. `test_close_image_lightbox_is_noop_when_already_closed`: dispatch `CloseImageLightbox` on a fresh state.
      Assert `new_state.lightbox_image.is_none()` and the state otherwise equals `ChatState::new()` (use
      `assert_eq!(*new_state, ChatState::new())`).
-- [ ] Task: Write tests **first** (Red phase). Confirm they fail. Implement 1.1–1.4. Confirm they pass (Green phase).
+- [x] Task: Write tests **first** (Red phase). Confirm they fail. Implement 1.1–1.4. Confirm they pass (Green phase).
 
 ### 1.6 Conductor — User Manual Verification 'Phase 1'
-- [ ] Task: Conductor — User Manual Verification 'Phase 1: Global State and Actions' (Protocol in workflow.md).
+- [x] Task: Conductor — User Manual Verification 'Phase 1: Global State and Actions' (Protocol in workflow.md).
   Verify:
   - `cargo test -p frontend` passes including the four new tests.
   - `cargo clippy -p frontend -- -D warnings` produces zero warnings.
