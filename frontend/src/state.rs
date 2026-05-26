@@ -63,6 +63,12 @@ impl Reducible for ChatState {
             ChatAction::SetAttachmentError(error) => {
                 new_state.set_attachment_error(error);
             }
+            ChatAction::OpenImageLightbox { url, alt } => {
+                new_state.open_lightbox(url, alt);
+            }
+            ChatAction::CloseImageLightbox => {
+                new_state.close_lightbox();
+            }
         }
         Rc::new(new_state)
     }

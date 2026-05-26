@@ -1,5 +1,5 @@
 use frontend::state::*;
-use frontend::logic::ChatState;
+use frontend::logic::{ChatState, ChatAction, LightboxImage};
 use frontend::types::Channel;
 use uuid::Uuid;
 use chrono::Utc;
@@ -83,5 +83,66 @@ fn test_attachment_actions() {
     // Clear all
     let new_state = reducer(new_state, ChatAction::ClearPendingAttachments);
     assert!(new_state.pending_attachments.is_empty());
+}
+
+#[test]
+fn test_open_image_lightbox_sets_state() {
+    let state = Rc::new(ChatState::new());
+    let action = ChatAction::OpenImageLightbox {
+        url: "/api/attachments/abc".into(),
+        alt: "photo.png".into(),
+    };
+    let new_state = reducer(state, action);
+    assert_eq!(
+        new_state.lightbox_image,
+        Some(LightboxImage {
+            url: "/api/attachments/abc".into(),
+            alt: "photo.png".into(),
+        })
+    );
+}
+
+#[test]
+fn test_close_image_lightbox_clears_state() {
+    let mut state = ChatState::new();
+    state.lightbox_image = Some(LightboxImage {
+        url: "/api/attachments/abc".into(),
+        alt: "photo.png".into(),
+    });
+    let state = Rc::new(state);
+    let action = ChatAction::CloseImageLightbox;
+    let new_state = reducer(state, action);
+    assert!(new_state.lightbox_image.is_none());
+}
+
+#[test]
+fn test_open_image_lightbox_replaces_existing() {
+    let mut state = ChatState::new();
+    state.lightbox_image = Some(LightboxImage {
+        url: "/api/attachments/old".into(),
+        alt: "old.png".into(),
+    });
+    let state = Rc::new(state);
+    let action = ChatAction::OpenImageLightbox {
+        url: "/api/attachments/new".into(),
+        alt: "new.png".into(),
+    };
+    let new_state = reducer(state, action);
+    assert_eq!(
+        new_state.lightbox_image,
+        Some(LightboxImage {
+            url: "/api/attachments/new".into(),
+            alt: "new.png".into(),
+        })
+    );
+}
+
+#[test]
+fn test_close_image_lightbox_is_noop_when_already_closed() {
+    let state = Rc::new(ChatState::new());
+    let action = ChatAction::CloseImageLightbox;
+    let new_state = reducer(state, action);
+    assert!(new_state.lightbox_image.is_none());
+    assert_eq!(*new_state, ChatState::new());
 }
 
