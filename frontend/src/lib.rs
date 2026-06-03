@@ -7,6 +7,7 @@ pub mod state;
 pub mod stomp;
 pub mod logic;
 pub mod hooks;
+pub mod attachment_handlers;
 
 #[derive(Clone, Routable, PartialEq)]
 pub enum Route {

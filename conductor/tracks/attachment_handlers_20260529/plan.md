@@ -61,7 +61,7 @@ a given attachment and formats a byte count for display. Phase 1 ends green on
 `cargo test -p frontend` and `cargo clippy -p frontend -- -D warnings`.
 
 ### 1.1 Write failing unit tests (Red)
-- [ ] Task: Create `frontend/tests/attachment_handlers_tests.rs`. Place all tests at
+- [x] Task: Create `frontend/tests/attachment_handlers_tests.rs`. Place all tests at
   the top of the file and any fixtures (e.g. an `att_with_mime(&str) -> AttachmentMeta`
   helper) at the bottom, per project test style. Confirm the file fails to compile
   because the symbols it imports do not exist yet.
@@ -85,7 +85,7 @@ a given attachment and formats a byte count for display. Phase 1 ends green on
   hand them a paste-ready 16-test suite.
 
 ### 1.2 Implement the resolver (Green)
-- [ ] Task: Create `frontend/src/attachment_handlers.rs` and register the module in
+- [x] Task: Create `frontend/src/attachment_handlers.rs` and register the module in
   `frontend/src/lib.rs`. Define:
   - `pub enum AttachmentHandlerKind { Image, Default }` (derive `Copy`, `Clone`,
     `Debug`, `PartialEq`, `Eq`).
@@ -100,18 +100,18 @@ a given attachment and formats a byte count for display. Phase 1 ends green on
   `lazy_static`, `OnceCell`, or any runtime registration — keep it static dispatch.
 
 ### 1.3 Implement `format_file_size` (Green)
-- [ ] Task: `pub fn format_file_size(bytes: i64) -> String`. Use **binary** units
+- [x] Task: `pub fn format_file_size(bytes: i64) -> String`. Use **binary** units
   (1 KB = 1024 B) to match typical OS file managers. Output shape: `"0 B"`,
   `"512 B"`, `"1.5 KB"`, `"2.5 MB"`, `"1.5 GB"`. Negative inputs clamp to zero.
   Implement as a small chain of early returns over the unit thresholds rather than
   nested `if`/`else` (per the project rule of avoiding nested control flow).
 
 ### 1.4 Green gate
-- [ ] Task: All Phase 1 unit tests pass. Clippy is clean. `trunk build` still
+- [x] Task: All Phase 1 unit tests pass. Clippy is clean. `trunk build` still
   succeeds. The new module imports nothing from `yew::` or `web_sys::`.
 
 ### 1.5 Conductor — User Manual Verification 'Phase 1'
-- [ ] Task: Conductor — User Manual Verification 'Phase 1: Pure handler
+- [x] Task: Conductor — User Manual Verification 'Phase 1: Pure handler
   abstraction' (Protocol in `conductor/workflow.md`).
 
 ---

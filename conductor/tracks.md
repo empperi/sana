@@ -13,5 +13,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 ## [ ] Track: Protocol doc & history simplification — wire-protocol doc, seq-ordered unified history, MessageStore removal [protocol_history_simplification_20260713]
 
 
-- [ ] **Track: Bug fix: non-image chat attachments aren't handled correctly**
+- [~] **Track: Bug fix: non-image chat attachments aren't handled correctly**
 *Link: [./tracks/attachment_handlers_20260529/](./tracks/attachment_handlers_20260529/)*
