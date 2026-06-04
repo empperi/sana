@@ -54,7 +54,7 @@ non-image attachments fall through to Default.
 
 ---
 
-## Phase 1: Pure handler abstraction
+## Phase 1: Pure handler abstraction [checkpoint: 8213eb1]
 
 Goal: a self-contained, side-effect-free module that decides which handler renders
 a given attachment and formats a byte count for display. Phase 1 ends green on
@@ -123,8 +123,8 @@ fallback. No integration yet — `AttachmentRenderer` and `chat_window.rs` stay 
 old code path until Phase 3, so the app keeps working while these new files land.
 
 ### 2.1 `ImageAttachment` component
-- [ ] Task: Create `frontend/src/components/image_attachment.rs`. Props: a single
-  `AttachmentMeta`. Behaviour: render an `<img>` whose `src` is
+- [x] Task: Create `frontend/src/components/image_attachment.rs`. Props: a single
+  AttachmentMeta. Behaviour: render an `<img>` whose `src` is
   `/api/attachments/{id}`, whose `alt` is `original_filename`, and whose
   `data-testid` is `attachment-img-{id}`. On click, read `ChatStateContext` and
   dispatch `ChatAction::OpenImageLightbox { url, alt }` — same payload shape the
@@ -135,8 +135,9 @@ old code path until Phase 3, so the app keeps working while these new files land
   is out of scope for this track).
 
 ### 2.2 `DefaultAttachment` component
-- [ ] Task: Create `frontend/src/components/default_attachment.rs`. Props: a single
+- [x] Task: Create `frontend/src/components/default_attachment.rs`. Props: a single
   `AttachmentMeta`. Visual structure (from `spec.md`):
+
   - A generic document icon (the same SVG path used today in the old generic
     fallback is fine — re-use, don't reinvent).
   - The filename.
@@ -158,7 +159,7 @@ old code path until Phase 3, so the app keeps working while these new files land
     is straightforward to style.
 
 ### 2.3 SCSS additions
-- [ ] Task: Append at the **end of `frontend/style.scss`**, after the existing
+- [~] Task: Append at the **end of `frontend/style.scss`**, after the existing
   `.attachment-item img { cursor: zoom-in; }` rule (matches the project convention
   used for the `.image-lightbox-*` block).
 
