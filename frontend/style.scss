@@ -933,7 +933,77 @@ body {
     }
 }
 
-// Make inline attachment images show a pointer to invite clicking
 .attachment-item img {
     cursor: zoom-in;
+}
+
+.attachment-renderer {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+
+    .attachment-item {
+        border: 1px solid #ddd;
+        padding: 8px;
+        border-radius: 4px;
+        max-width: 300px;
+    }
+}
+
+.default-attachment {
+    align-items: center;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    display: flex;
+    gap: 8px;
+    padding: 8px;
+
+    .attachment-icon {
+        align-items: center;
+        color: #6c757d;
+        display: flex;
+        justify-content: center;
+    }
+
+    .attachment-meta {
+        color: #212529;
+        display: flex;
+        flex-direction: column;
+        font-weight: 600;
+        gap: 2px;
+        min-width: 0;
+
+        .attachment-filename {
+            color: #212529;
+            font-weight: 600;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .attachment-info {
+            color: #6c757d;
+            font-size: 0.75em;
+        }
+    }
+
+    .attachment-download {
+        background-color: #007a5a;
+        border: none;
+        border-radius: 4px;
+        color: white;
+        cursor: pointer;
+        font-size: 0.8em;
+        font-weight: 600;
+        padding: 4px 8px;
+        text-decoration: none;
+        transition: background-color 0.2s;
+        white-space: nowrap;
+
+        &:hover {
+            background-color: #148567;
+        }
+    }
 }

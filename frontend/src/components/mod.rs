@@ -6,3 +6,6 @@ pub mod profile_menu;
 pub mod attachment_button;
 pub mod attachment_renderer;
 pub mod image_lightbox;
+pub mod image_attachment;
+pub mod default_attachment;
+pub mod attachment;
