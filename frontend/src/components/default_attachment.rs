@@ -17,13 +17,23 @@ pub fn default_attachment(props: &DefaultAttachmentProps) -> Html {
     html! {
         <div class="default-attachment">
             <div class="attachment-icon">
-                <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <svg 
+                    viewBox="0 0 24 24" 
+                    width="24" 
+                    height="24" 
+                    stroke="currentColor" 
+                    stroke-width="2" 
+                    fill="none" 
+                    stroke-linecap="round" 
+                    stroke-linejoin="round">
                     <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
                     <polyline points="13 2 13 9 20 9" />
                 </svg>
             </div>
             <div class="attachment-meta">
-                <span class="attachment-filename" title={att.original_filename.clone()} data-testid={format!("attachment-filename-{}", id_str)}>
+                <span class="attachment-filename" 
+                    title={att.original_filename.clone()} 
+                    data-testid={format!("attachment-filename-{}", id_str)}>
                     { &att.original_filename }
                 </span>
                 <span class="attachment-info">
@@ -35,8 +45,8 @@ pub fn default_attachment(props: &DefaultAttachmentProps) -> Html {
                download={att.original_filename.clone()} 
                role="button"
                data-testid={format!("attachment-download-{}", id_str)}>
-                { "Download" }
-            </a>
+                 { "Download" }
+             </a>
         </div>
     }
 }

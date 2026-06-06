@@ -159,7 +159,7 @@ old code path until Phase 3, so the app keeps working while these new files land
     is straightforward to style.
 
 ### 2.3 SCSS additions
-- [~] Task: Append at the **end of `frontend/style.scss`**, after the existing
+- [x] Task: Append at the **end of `frontend/style.scss`**, after the existing
   `.attachment-item img { cursor: zoom-in; }` rule (matches the project convention
   used for the `.image-lightbox-*` block).
 
@@ -180,7 +180,7 @@ old code path until Phase 3, so the app keeps working while these new files land
     no ID selectors.
 
 ### 2.4 `Attachment` dispatcher
-- [ ] Task: Create `frontend/src/components/attachment.rs`. Props: a single
+- [x] Task: Create `frontend/src/components/attachment.rs`. Props: a single
   `AttachmentMeta`. Body is a `match resolve_handler(&props.attachment)` with one
   arm per `AttachmentHandlerKind` variant, returning the corresponding component
   `html! { <ImageAttachment .../> }` / `html! { <DefaultAttachment .../> }`.
@@ -188,7 +188,7 @@ old code path until Phase 3, so the app keeps working while these new files land
   `attachment_handlers::resolve_handler`.
 
 ### 2.5 Module registration
-- [ ] Task: Add the three new components to `frontend/src/components/mod.rs`. Keep
+- [x] Task: Add the three new components to `frontend/src/components/mod.rs`. Keep
   the file's existing append-style ordering.
 
 ### 2.6 Build / lint gate

@@ -967,27 +967,25 @@ body {
         justify-content: center;
     }
 
-    .attachment-meta {
-        color: #212529;
-        display: flex;
-        flex-direction: column;
-        font-weight: 600;
-        gap: 2px;
-        min-width: 0;
+        .attachment-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
 
-        .attachment-filename {
-            color: #212529;
-            font-weight: 600;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
+            .attachment-filename {
+                color: #212529;
+                font-weight: 600;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
 
-        .attachment-info {
-            color: #6c757d;
-            font-size: 0.75em;
+            .attachment-info {
+                color: #6c757d;
+                font-size: 0.75em;
+            }
         }
-    }
 
     .attachment-download {
         background-color: #007a5a;
