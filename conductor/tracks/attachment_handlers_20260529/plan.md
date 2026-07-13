@@ -116,7 +116,7 @@ a given attachment and formats a byte count for display. Phase 1 ends green on
 
 ---
 
-## Phase 2: Handler components and dispatcher
+## Phase 2: Handler components and dispatcher [checkpoint: 41b14dd]
 
 Goal: build the two presentational components, the dispatcher, and the SCSS for the
 fallback. No integration yet — `AttachmentRenderer` and `chat_window.rs` stay on the
