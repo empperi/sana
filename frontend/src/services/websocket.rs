@@ -64,7 +64,11 @@ impl WebSocketService {
             
             loop {
                 // Check if we should stop before trying to connect
-                if stop_rx.try_next().is_ok() { break; }
+                match stop_rx.try_recv() {
+                    Ok(_) => break,
+                    Err(futures::channel::mpsc::TryRecvError::Closed) => break,
+                    Err(futures::channel::mpsc::TryRecvError::Empty) => {}
+                }
 
                 if attempts >= MAX_ATTEMPTS {
                     web_sys::console::error_1(&format!("WebSocket: Maximum reconnection attempts ({}) reached. Stopping.", MAX_ATTEMPTS).into());
@@ -209,7 +213,7 @@ impl WebSocketService {
         R: Stream<Item = Result<Message, WebSocketError>> + Unpin,
     {
         let mut pending = HashSet::new();
-        while let Ok(Some(msg)) = rx.try_next() {
+        while let Ok(msg) = rx.try_recv() {
             if msg.starts_with("SUBSCRIBE") {
                 let (final_msg, receipt_id) = prepare_subscription_frame(msg);
                 if let Some(rid) = receipt_id { pending.insert(rid); }
