@@ -2,9 +2,6 @@
 
 This file tracks all major tracks for the project. Each track has its own detailed plan in its respective folder.
 
-- [x] **Track: Bug fix: non-image chat attachments aren't handled correctly**
-  *Link: [./tracks/attachment_handlers_20260529/](./tracks/attachment_handlers_20260529/)*
-
 - [ ] **Track: Security — channel authorization and server-side sessions**
   *Link: [./tracks/security_authz_sessions_20260713](./tracks/security_authz_sessions_20260713)*
 
