@@ -1,0 +1,8 @@
+{
+  "track_id": "scaling_throughput_prep_20260713",
+  "type": "chore",
+  "status": "pending",
+  "created_at": "2026-07-13T11:22:07Z",
+  "updated_at": "2026-07-13T11:22:07Z",
+  "description": "Throughput ceilings from the 2026-07-13 architecture review (§3, findings B12/B14/B15): configurable DB pool with transaction-free reads, bcrypt via spawn_blocking, batched archiver transactions, read markers moved to a compacted SANA_READS stream, and streaming attachment upload/download."
+}

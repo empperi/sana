@@ -1,0 +1,8 @@
+{
+  "track_id": "correctness_quick_wins_20260713",
+  "type": "bug",
+  "status": "pending",
+  "created_at": "2026-07-13T11:22:07Z",
+  "updated_at": "2026-07-13T11:22:07Z",
+  "description": "Batch of small correctness fixes from the 2026-07-13 architecture review (findings B4/B8/B9/B11): raise the 2 MB body limit blocking attachment uploads, send RECEIPT only after successful publish, surface failed sends in the UI, validate channel names and map unique-violation races to 409, and remove dead frontend code."
+}

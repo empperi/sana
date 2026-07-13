@@ -1,0 +1,8 @@
+{
+  "track_id": "security_authz_sessions_20260713",
+  "type": "bug",
+  "status": "pending",
+  "created_at": "2026-07-13T11:22:07Z",
+  "updated_at": "2026-07-13T11:22:07Z",
+  "description": "Security hardening from the 2026-07-13 architecture review (findings B1/B2/B13): DB-backed sessions with expiry and real logout, hardened cookie attributes, and a shared channel-authorization service enforced on WebSocket subscribe/send, REST history, and attachment download."
+}

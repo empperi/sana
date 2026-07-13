@@ -1,0 +1,8 @@
+{
+  "track_id": "durability_delivery_20260713",
+  "type": "bug",
+  "status": "pending",
+  "created_at": "2026-07-13T11:22:07Z",
+  "updated_at": "2026-07-13T11:22:07Z",
+  "description": "Durability and delivery fixes from the 2026-07-13 architecture review (findings B3/B5/B6/B7): JetStream retention limits, lagged-subscriber recovery instead of silent delivery death, gap-free fan-out consumer restarts, and the missing messages(channel_id, created_at) index."
+}
