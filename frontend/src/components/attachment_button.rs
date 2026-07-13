@@ -5,12 +5,17 @@ use crate::logic::ChatAction;
 use crate::services::attachment::upload_file;
 use wasm_bindgen_futures::spawn_local;
 
+#[derive(Properties, PartialEq)]
+pub struct AttachmentButtonProps {
+    pub file_input_ref: NodeRef,
+}
+
 #[function_component(AttachmentButton)]
-pub fn attachment_button() -> Html {
+pub fn attachment_button(props: &AttachmentButtonProps) -> Html {
     let ctx = use_context::<ChatStateContext>().expect("No ChatStateContext found");
     let is_uploading = use_state(|| false);
     
-    let file_input_ref = use_node_ref();
+    let file_input_ref = props.file_input_ref.clone();
 
     let on_button_click = {
         let file_input_ref = file_input_ref.clone();

@@ -36,16 +36,12 @@ pub fn join_channel_modal(props: &JoinChannelModalProps) -> Html {
             if !open {
                 search_query.set(String::new());
                 new_channel_name.set(String::new());
-            } else {
-                if is_create_focus {
-                    if let Some(input) = create_input_ref.cast::<HtmlInputElement>() {
-                        let _ = input.focus();
-                    }
-                } else {
-                    if let Some(input) = search_input_ref.cast::<HtmlInputElement>() {
-                        let _ = input.focus();
-                    }
+            } else if is_create_focus {
+                if let Some(input) = create_input_ref.cast::<HtmlInputElement>() {
+                    let _ = input.focus();
                 }
+            } else if let Some(input) = search_input_ref.cast::<HtmlInputElement>() {
+                let _ = input.focus();
             }
             || {}
         });
