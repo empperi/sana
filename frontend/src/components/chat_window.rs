@@ -8,10 +8,8 @@ use crate::hooks::use_chat_scroll;
 use uuid::Uuid;
 use crate::state::ChatStateContext;
 use crate::logic::ChatAction;
-use crate::services::attachment::upload_file;
 use web_sys::{DragEvent, ClipboardEvent};
 use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::spawn_local;
 
 #[derive(Properties, PartialEq)]
 pub struct ChatWindowProps {
@@ -130,53 +128,69 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
         e.prevent_default();
     });
 
-    let on_drop = {
-        let dispatch = ctx.dispatch.clone();
-        Callback::from(move |e: DragEvent| {
-            e.prevent_default();
-            if let Some(data_transfer) = e.data_transfer() {
-                if let Some(files) = data_transfer.files() {
-                    if files.length() > 0 {
-                        if let Some(file) = files.get(0) {
-                            let dispatch = dispatch.clone();
-                            dispatch.emit(ChatAction::SetAttachmentError(None));
-                            spawn_local(async move {
-                                match upload_file(file).await {
-                                    Ok(meta) => dispatch.emit(ChatAction::AddPendingAttachment(meta)),
-                                    Err(err) => dispatch.emit(ChatAction::SetAttachmentError(Some(err))),
-                                }
-                            });
+    let on_drop = Callback::from(move |e: DragEvent| {
+        e.prevent_default();
+        if let Some(data_transfer) = e.data_transfer() {
+            let document = web_sys::window().expect("no window").document().expect("no document");
+            if let Some(input_element) = document.query_selector("input[data-testid='file-input']").unwrap() {
+                let input: web_sys::HtmlInputElement = input_element.dyn_into().unwrap();
+                
+                if let Ok(new_dt) = web_sys::DataTransfer::new() {
+                    if let Some(dropped_files) = data_transfer.files() {
+                        let items = new_dt.items();
+                        for i in 0..dropped_files.length() {
+                            if let Some(file) = dropped_files.get(i) {
+                                let _ = items.add_with_file(&file);
+                            }
+                        }
+                        input.set_files(new_dt.files().as_ref());
+                        let init = web_sys::EventInit::new();
+                        init.set_bubbles(true);
+                        if let Ok(event) = web_sys::Event::new_with_event_init_dict(
+                            "change",
+                            &init
+                        ) {
+                            let _ = input.dispatch_event(&event);
                         }
                     }
                 }
             }
-        })
-    };
+        }
+    });
 
-    let on_paste = {
-        let dispatch = ctx.dispatch.clone();
-        Callback::from(move |e: Event| {
-            if let Ok(ce) = e.clone().dyn_into::<ClipboardEvent>() {
-                if let Some(data_transfer) = ce.clipboard_data() {
-                    if let Some(files) = data_transfer.files() {
-                        if files.length() > 0 {
-                            if let Some(file) = files.get(0) {
-                                ce.prevent_default();
-                                let dispatch = dispatch.clone();
-                                dispatch.emit(ChatAction::SetAttachmentError(None));
-                                spawn_local(async move {
-                                    match upload_file(file).await {
-                                        Ok(meta) => dispatch.emit(ChatAction::AddPendingAttachment(meta)),
-                                        Err(err) => dispatch.emit(ChatAction::SetAttachmentError(Some(err))),
+    let on_paste = Callback::from(move |e: Event| {
+        if let Ok(ce) = e.clone().dyn_into::<ClipboardEvent>() {
+            if let Some(data_transfer) = ce.clipboard_data() {
+                if let Some(files) = data_transfer.files() {
+                    if files.length() > 0 {
+                        ce.prevent_default();
+                        let document = web_sys::window().expect("no window").document().expect("no document");
+                        if let Some(input_element) = document.query_selector("input[data-testid='file-input']").unwrap() {
+                            let input: web_sys::HtmlInputElement = input_element.dyn_into().unwrap();
+                            
+                            if let Ok(new_dt) = web_sys::DataTransfer::new() {
+                                let items = new_dt.items();
+                                for i in 0..files.length() {
+                                    if let Some(file) = files.get(i) {
+                                        let _ = items.add_with_file(&file);
                                     }
-                                });
+                                }
+                                input.set_files(new_dt.files().as_ref());
+                                let init = web_sys::EventInit::new();
+                                init.set_bubbles(true);
+                                if let Ok(event) = web_sys::Event::new_with_event_init_dict(
+                                    "change",
+                                    &init
+                                ) {
+                                    let _ = input.dispatch_event(&event);
+                                }
                             }
                         }
                     }
                 }
             }
-        })
-    };
+        }
+    });
 
     html! {
         <div class="chat-container" data-testid="chat-area" ondragover={on_drag_over} ondrop={on_drop}>
