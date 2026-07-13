@@ -192,13 +192,13 @@ old code path until Phase 3, so the app keeps working while these new files land
   the file's existing append-style ordering.
 
 ### 2.6 Build / lint gate
-- [ ] Task: `cargo build -p frontend`, `cargo clippy -p frontend -- -D warnings`,
+- [x] Task: `cargo build -p frontend`, `cargo clippy -p frontend -- -D warnings`,
   `cargo test -p frontend` all green. No new unit tests are expected at the
   component level — the project relies on E2E for component behaviour (see
   `AGENTS.md`).
 
 ### 2.7 Conductor — User Manual Verification 'Phase 2'
-- [ ] Task: Conductor — User Manual Verification 'Phase 2: Handler components and
+- [x] Task: Conductor — User Manual Verification 'Phase 2: Handler components and
   dispatcher' (Protocol in `conductor/workflow.md`).
 
 ---
