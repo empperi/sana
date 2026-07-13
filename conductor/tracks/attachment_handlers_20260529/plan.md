@@ -209,7 +209,7 @@ Goal: wire the new components in, delete the obsolete inline branches, prove the
 bug is fixed end-to-end without regression.
 
 ### 3.1 Reduce `AttachmentRenderer` to an iterator
-- [ ] Task: Replace the body of `frontend/src/components/attachment_renderer.rs`
+- [x] Task: Replace the body of `frontend/src/components/attachment_renderer.rs`
   with a thin iterator that, for each attachment, emits the existing wrapper
   `<div class="attachment-item" data-testid="attachment-{id}">` (preserved so
   the current E2E selector keeps working) and delegates the inner rendering to
@@ -224,18 +224,18 @@ bug is fixed end-to-end without regression.
   component body) and contain no MIME knowledge.
 
 ### 3.2 Move the renderer wrapper styles into SCSS
-- [ ] Task: Already specified in 2.3 — confirm the `.attachment-renderer` and
+- [x] Task: Already specified in 2.3 — confirm the `.attachment-renderer` and
   `.attachment-item` rules are present in `frontend/style.scss` and reproduce
   the dropped inline styles exactly (no visual regression intended). The
   `.attachment-item img { cursor: zoom-in; }` rule from the image-lightbox track
   must remain — `ImageAttachment` still renders inside `.attachment-item`.
 
 ### 3.3 Build / lint / test gate
-- [ ] Task: `cargo build -p frontend`, `cargo clippy -p frontend -- -D warnings`,
+- [x] Task: `cargo build -p frontend`, `cargo clippy -p frontend -- -D warnings`,
   `cargo test -p frontend`, and `cd frontend && trunk build` all green.
 
 ### 3.4 Stabilise the existing E2E text-file assertion
-- [ ] Task: In `e2e/tests/attachments.spec.ts`, the existing "upload and receive
+- [x] Task: In `e2e/tests/attachments.spec.ts`, the existing "upload and receive
   attachments" test currently asserts the text-file download via
   `locator('a[download="hello.txt"]')`. That couples the test to the DOM
   attribute. Replace it with a `data-testid` lookup against
@@ -243,7 +243,7 @@ bug is fixed end-to-end without regression.
   assertion. Per project rule: E2E selectors must be `data-testid` only.
 
 ### 3.5 New E2E happy-path test: PDF fallback, no auto-download
-- [ ] Task: Add a second test inside the existing `test.describe('File
+- [x] Task: Add a second test inside the existing `test.describe('File
   Attachments', ...)` block. It should:
   - Provision two users in a new channel (mirror the two-user setup of the
     existing test).
@@ -259,19 +259,19 @@ bug is fixed end-to-end without regression.
     - After a short wait, the unsolicited-download list is still empty (this is
       the regression check that proves the bug is fixed).
   - Click the download element and assert a `download` event fires with the
-    correct `suggestedFilename`.
+      correct `suggestedFilename`.
 
   All selectors `data-testid`. No assertions on tag names or class names.
 
 ### 3.6 Run the full suite
-- [ ] Task: Bring up the stack
+- [x] Task: Bring up the stack
   (`docker compose -f docker-compose.e2e.yml --project-name sana-e2e up --wait`)
   and run `cd e2e && npx playwright test --reporter=list` (the default reporter
   hangs — see `AGENTS.md`). All tests, including the existing image-lightbox
   suite, must pass.
 
 ### 3.7 Conductor — User Manual Verification 'Phase 3'
-- [ ] Task: Conductor — User Manual Verification 'Phase 3: Integration, cleanup,
+- [x] Task: Conductor — User Manual Verification 'Phase 3: Integration, cleanup,
   and E2E' (Protocol in `conductor/workflow.md`). Walk through `spec.md`'s
   Acceptance Criteria item by item in a real browser:
   - Open a channel with a PDF attachment; confirm no automatic download dialog
