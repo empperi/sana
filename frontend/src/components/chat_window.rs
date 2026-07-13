@@ -28,6 +28,7 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
     
     let input_value = use_state(String::new);
     let input_ref = use_node_ref();
+    let file_input_ref = use_node_ref();
 
     let (history_ref, show_new_messages_notification, is_user_scrolled_up, on_scroll, scroll_to_bottom) = use_chat_scroll(
         props.messages.clone(),
@@ -128,69 +129,37 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
         e.prevent_default();
     });
 
-    let on_drop = Callback::from(move |e: DragEvent| {
-        e.prevent_default();
-        if let Some(data_transfer) = e.data_transfer() {
-            let document = web_sys::window().expect("no window").document().expect("no document");
-            if let Some(input_element) = document.query_selector("input[data-testid='file-input']").unwrap() {
-                let input: web_sys::HtmlInputElement = input_element.dyn_into().unwrap();
-                
-                if let Ok(new_dt) = web_sys::DataTransfer::new() {
-                    if let Some(dropped_files) = data_transfer.files() {
-                        let items = new_dt.items();
-                        for i in 0..dropped_files.length() {
-                            if let Some(file) = dropped_files.get(i) {
-                                let _ = items.add_with_file(&file);
-                            }
-                        }
-                        input.set_files(new_dt.files().as_ref());
-                        let init = web_sys::EventInit::new();
-                        init.set_bubbles(true);
-                        if let Ok(event) = web_sys::Event::new_with_event_init_dict(
-                            "change",
-                            &init
-                        ) {
-                            let _ = input.dispatch_event(&event);
-                        }
+    let on_drop = {
+        let file_input_ref = file_input_ref.clone();
+        Callback::from(move |e: DragEvent| {
+            e.prevent_default();
+            if let Some(data_transfer) = e.data_transfer() {
+                if let Some(input) = file_input_ref.cast::<web_sys::HtmlInputElement>() {
+                    if let Some(files) = data_transfer.files() {
+                        dispatch_files_to_input(&files, &input);
                     }
                 }
             }
-        }
-    });
+        })
+    };
 
-    let on_paste = Callback::from(move |e: Event| {
-        if let Ok(ce) = e.clone().dyn_into::<ClipboardEvent>() {
-            if let Some(data_transfer) = ce.clipboard_data() {
-                if let Some(files) = data_transfer.files() {
-                    if files.length() > 0 {
-                        ce.prevent_default();
-                        let document = web_sys::window().expect("no window").document().expect("no document");
-                        if let Some(input_element) = document.query_selector("input[data-testid='file-input']").unwrap() {
-                            let input: web_sys::HtmlInputElement = input_element.dyn_into().unwrap();
-                            
-                            if let Ok(new_dt) = web_sys::DataTransfer::new() {
-                                let items = new_dt.items();
-                                for i in 0..files.length() {
-                                    if let Some(file) = files.get(i) {
-                                        let _ = items.add_with_file(&file);
-                                    }
-                                }
-                                input.set_files(new_dt.files().as_ref());
-                                let init = web_sys::EventInit::new();
-                                init.set_bubbles(true);
-                                if let Ok(event) = web_sys::Event::new_with_event_init_dict(
-                                    "change",
-                                    &init
-                                ) {
-                                    let _ = input.dispatch_event(&event);
-                                }
+    let on_paste = {
+        let file_input_ref = file_input_ref.clone();
+        Callback::from(move |e: Event| {
+            if let Ok(ce) = e.clone().dyn_into::<ClipboardEvent>() {
+                if let Some(data_transfer) = ce.clipboard_data() {
+                    if let Some(files) = data_transfer.files() {
+                        if files.length() > 0 {
+                            ce.prevent_default();
+                            if let Some(input) = file_input_ref.cast::<web_sys::HtmlInputElement>() {
+                                dispatch_files_to_input(&files, &input);
                             }
                         }
                     }
                 }
             }
-        }
-    });
+        })
+    };
 
     html! {
         <div class="chat-container" data-testid="chat-area" ondragover={on_drag_over} ondrop={on_drop}>
@@ -268,7 +237,7 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                     </div>
                 }
                 <form onsubmit={on_submit} style="display: flex; gap: 8px; width: 100%;">
-                    <AttachmentButton />
+                    <AttachmentButton file_input_ref={file_input_ref.clone()} />
                     <input
                         type="text"
                         ref={input_ref}
@@ -283,6 +252,23 @@ pub fn chat_window(props: &ChatWindowProps) -> Html {
                 </form>
             </footer>
         </div>
+    }
+}
+
+fn dispatch_files_to_input(files: &web_sys::FileList, input: &web_sys::HtmlInputElement) {
+    if let Ok(new_dt) = web_sys::DataTransfer::new() {
+        let items = new_dt.items();
+        for i in 0..files.length() {
+            if let Some(file) = files.get(i) {
+                let _ = items.add_with_file(&file);
+            }
+        }
+        input.set_files(new_dt.files().as_ref());
+        let init = web_sys::EventInit::new();
+        init.set_bubbles(true);
+        if let Ok(event) = web_sys::Event::new_with_event_init_dict("change", &init) {
+            let _ = input.dispatch_event(&event);
+        }
     }
 }
 
