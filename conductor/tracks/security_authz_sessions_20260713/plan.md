@@ -35,14 +35,14 @@
   is found expired), `delete_session(tx, session_id)`.
 
 ### 1.3 Session logic
-- [ ] Task: Write failing tests (new file `tests/session_logic_tests.rs`) for a new `src/logic/sessions.rs`
+- [x] Task: Write failing tests (new file `tests/session_logic_tests.rs`) for a new `src/logic/sessions.rs`
   module: creating a session yields an id that validates back to the user; validation of a random id fails;
   validation after logout fails; the 30-day lifetime constant is applied (assert `expires_at ≈ now + 30d`).
-- [ ] Task: Implement `src/logic/sessions.rs` (register in `src/logic/mod.rs`): `start_session(pool, user_id) ->
+- [x] Task: Implement `src/logic/sessions.rs` (register in `src/logic/mod.rs`): `start_session(pool, user_id) ->
   session_id`, `validate(state, session_id) -> Option<user_id>`, `end_session(state, session_id)`. This module
   owns the transactions. `validate` consults `AppState.session_cache` first (60 s TTL), then DB, then populates
   the cache. `end_session` deletes the DB row and evicts the cache entry.
-- [ ] Task: Re-key `AppState.session_cache` (`src/state.rs`) from `DashMap<Uuid, DateTime<Utc>>` (user_id) to
+- [x] Task: Re-key `AppState.session_cache` (`src/state.rs`) from `DashMap<Uuid, DateTime<Utc>>` (user_id) to
   `DashMap<Uuid, (Uuid, DateTime<Utc>)>` (session_id → user_id + cached_at). Move the cache read/write logic out
   of `AppState::validate_session` into `logic::sessions::validate`; `AppState::validate_session` and
   `invalidate_session` are removed or reduced to thin delegating wrappers (prefer removal — update callers).
