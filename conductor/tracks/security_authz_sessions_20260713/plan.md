@@ -92,10 +92,10 @@
 ## Phase 3: Channel authorization service and enforcement
 
 ### 3.1 Authorization service
-- [ ] Task: Write failing tests (`tests/authz_tests.rs`) for `src/logic/authz.rs`: member passes; non-member
+- [x] Task: Write failing tests (`tests/authz_tests.rs`) for `src/logic/authz.rs`: member passes; non-member
   fails with a distinct error; unknown channel fails; `system.channels` is always allowed by the WS-facing
   variant.
-- [ ] Task: Implement `src/logic/authz.rs` with `ensure_channel_member(pool, user_id, channel_id) -> Result<(),
+- [x] Task: Implement `src/logic/authz.rs` with `ensure_channel_member(pool, user_id, channel_id) -> Result<(),
   AuthzError>` and a by-name variant for the WS path (resolve name → id via `state.channel_ids`, falling back to
   `db::channels::get_channel_by_name` like `ws_logic::resolve_channel_id` does). Reuse
   `db::channels::is_channel_member` for the query. `AuthzError` distinguishes `NotAMember` from `ChannelNotFound`
