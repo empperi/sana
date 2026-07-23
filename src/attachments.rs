@@ -27,6 +27,7 @@ impl IntoResponse for AppError {
         let (status, message) = match self {
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
             AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
+            AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg),
             AppError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
         };
 
@@ -66,7 +67,7 @@ async fn upload_attachment(
 }
 
 async fn download_attachment(
-    _session: UserSession,
+    session: UserSession,
     State(state): State<AppState>,
     State(combined_state): State<CombinedState>,
     Path(id): Path<Uuid>,
@@ -74,6 +75,7 @@ async fn download_attachment(
     let (meta, path) = attachments::get_attachment_for_download(
         &state.db_pool,
         &combined_state.config,
+        session.user_id,
         id
     ).await?;
 

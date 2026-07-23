@@ -58,5 +58,9 @@ test.describe('Authentication', () => {
     await page.getByTestId('profile-button').click();
     await page.getByTestId('logout-button').click();
     await expect(page).toHaveURL(/\/login/);
+
+    // 6. Navigating to app root after logout redirects to login
+    await page.goto('/');
+    await expect(page).toHaveURL(/\/login/);
   });
 });

@@ -29,6 +29,19 @@ fn test_cors_origin_from_env() {
 }
 
 #[test]
+fn test_cookie_secure_default_and_env() {
+    let _lock = get_env_mutex().lock().unwrap();
+    env::remove_var("COOKIE_SECURE");
+    let config_default = Config::load(None);
+    assert!(!config_default.cookie_secure);
+
+    env::set_var("COOKIE_SECURE", "true");
+    let config_env = Config::load(None);
+    assert!(config_env.cookie_secure);
+    env::remove_var("COOKIE_SECURE");
+}
+
+#[test]
 fn test_config_loading() {
     let _lock = get_env_mutex().lock().unwrap();
     // 1. Test Defaults

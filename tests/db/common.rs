@@ -61,3 +61,30 @@ pub async fn join_test_channel(pool: &PgPool, user_id: Uuid, channel_id: Uuid) {
     channels::join_channel(&mut tx, user_id, channel_id).await.expect("Failed to join test channel");
     tx.commit().await.expect("Failed to commit join test channel transaction");
 }
+
+#[allow(dead_code)]
+pub async fn create_test_session(pool: &PgPool, user_id: Uuid) -> Uuid {
+    sana::logic::sessions::start_session(pool, user_id).await.expect("Failed to start test session")
+}
+
+#[allow(dead_code)]
+pub fn make_session_cookie(key: &axum_extra::extract::cookie::Key, session_id: Uuid) -> String {
+    use axum::response::IntoResponse;
+    let cookie = axum_extra::extract::cookie::Cookie::new("session_id", session_id.to_string());
+    let signed_jar = axum_extra::extract::cookie::SignedCookieJar::new(key.clone()).add(cookie);
+    signed_jar.into_response().headers().get("Set-Cookie").unwrap().to_str().unwrap().to_string()
+}
+
+#[allow(dead_code)]
+pub async fn seed_general_channel(pool: &PgPool) {
+    let mut tx = pool.begin().await.expect("Failed to start tx for general channel");
+    let general_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+    let general_channel = channels::Channel {
+        id: general_id,
+        name: "General".to_string(),
+        is_private: false,
+        created_at: Utc::now(),
+    };
+    let _ = channels::insert_channel(&mut tx, &general_channel).await;
+    tx.commit().await.expect("Failed to commit general channel");
+}

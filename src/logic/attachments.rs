@@ -2,15 +2,15 @@ use std::path::PathBuf;
 use uuid::Uuid;
 use bytes::Bytes;
 use sqlx::PgPool;
-use sqlx::Row;
 use crate::config::Config;
 use crate::messages::AttachmentMeta;
 use crate::db::attachments;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum AppError {
     BadRequest(String),
     NotFound(String),
+    Forbidden(String),
     Internal(String),
 }
 
@@ -19,6 +19,7 @@ impl std::fmt::Display for AppError {
         match self {
             AppError::BadRequest(msg) => write!(f, "Bad Request: {}", msg),
             AppError::NotFound(msg) => write!(f, "Not Found: {}", msg),
+            AppError::Forbidden(msg) => write!(f, "Forbidden: {}", msg),
             AppError::Internal(msg) => write!(f, "Internal Error: {}", msg),
         }
     }
@@ -106,33 +107,36 @@ pub async fn upload_attachment(
 pub async fn get_attachment_for_download(
     pool: &PgPool,
     config: &Config,
+    requester_id: Uuid,
     attachment_id: Uuid,
 ) -> Result<(AttachmentMeta, PathBuf), AppError> {
     let mut tx = pool.begin().await.map_err(|e| AppError::Internal(e.to_string()))?;
-    
-    let row = sqlx::query(
-        "SELECT id, original_filename, stored_filename, file_size, mime_type FROM attachments WHERE id = $1"
-    )
-    .bind(attachment_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|e| AppError::Internal(e.to_string()))?;
+    let info = attachments::get_attachment_download_info(&mut tx, attachment_id)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?
+        .ok_or_else(|| AppError::NotFound("Attachment not found".to_string()))?;
 
-    let (meta, stored_filename) = match row {
-        Some(r) => {
-            let meta = AttachmentMeta {
-                id: r.get("id"),
-                original_filename: r.get("original_filename"),
-                file_size: r.get("file_size"),
-                mime_type: r.get("mime_type"),
-            };
-            let stored_filename: String = r.get("stored_filename");
-            (meta, stored_filename)
-        },
-        None => return Err(AppError::NotFound("Attachment not found".to_string())),
-    };
+    tx.commit().await.map_err(|e| AppError::Internal(e.to_string()))?;
 
-    let file_path = PathBuf::from(&config.attachment_storage_dir).join(stored_filename);
-    
-    Ok((meta, file_path))
+    if info.message_id.is_some() {
+        if let Some(chan_id) = info.channel_id {
+            match crate::logic::authz::ensure_channel_member(pool, requester_id, chan_id).await {
+                Ok(()) => {},
+                Err(crate::logic::authz::AuthzError::NotAMember) |
+                Err(crate::logic::authz::AuthzError::ChannelNotFound) => {
+                    return Err(AppError::Forbidden("Not authorized to access attachment".to_string()));
+                }
+                Err(crate::logic::authz::AuthzError::DbError(msg)) => {
+                    return Err(AppError::Internal(msg));
+                }
+            }
+        } else {
+            return Err(AppError::Forbidden("Not authorized to access attachment".to_string()));
+        }
+    } else if info.uploaded_by != requester_id {
+        return Err(AppError::Forbidden("Not authorized to access attachment".to_string()));
+    }
+
+    let file_path = PathBuf::from(&config.attachment_storage_dir).join(info.stored_filename);
+    Ok((info.meta, file_path))
 }

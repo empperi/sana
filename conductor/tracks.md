@@ -2,8 +2,8 @@
 
 This file tracks all major tracks for the project. Each track has its own detailed plan in its respective folder.
 
-- [ ] **Track: Security — channel authorization and server-side sessions**
-  *Link: [./tracks/security_authz_sessions_20260713](./tracks/security_authz_sessions_20260713)*
+- [x] **Track: Security — channel authorization and server-side sessions**
+  *Link: [./archive/security_authz_sessions_20260713](./archive/security_authz_sessions_20260713)*
 
 - [ ] **Track: Durability & delivery — stream retention, lagged-subscriber recovery, consumer restart gap, history index** 
   *Link [./tracks/durability_delivery_20260713](./tracks/durability_delivery_20260713)*
