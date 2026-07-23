@@ -56,7 +56,7 @@
 ## Phase 2: Wire sessions into auth endpoints, extractor, and WS handshake
 
 ### 2.1 Config flag
-- [ ] Task: Add `cookie_secure: bool` to `Config` (`src/config.rs`), default `false`, env `COOKIE_SECURE`,
+- [x] Task: Add `cookie_secure: bool` to `Config` (`src/config.rs`), default `false`, env `COOKIE_SECURE`,
   parsed like `max_attachment_size_bytes`. Extend `tests/config_tests.rs`.
 
 ### 2.2 Cookie issuance and attributes

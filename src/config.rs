@@ -9,6 +9,7 @@ pub struct Config {
     pub cors_origin: String,
     pub attachment_storage_dir: String,
     pub max_attachment_size_bytes: u64,
+    pub cookie_secure: bool,
 }
 
 impl Default for Config {
@@ -38,6 +39,9 @@ impl Config {
         let max_attachment_size_bytes = Self::get_value("max_attachment_size_bytes", "52428800", &config_file)
             .parse::<u64>()
             .unwrap_or(52428800);
+        let cookie_secure = Self::get_value("cookie_secure", "false", &config_file)
+            .parse::<bool>()
+            .unwrap_or(false);
 
         // Ensure attachment directory exists
         if let Err(e) = fs::create_dir_all(&attachment_storage_dir) {
@@ -57,6 +61,7 @@ impl Config {
             cors_origin,
             attachment_storage_dir,
             max_attachment_size_bytes,
+            cookie_secure,
         }
     }
 
@@ -84,6 +89,9 @@ impl Config {
         // 2. Configuration File
         if let Some(file_json) = config_file {
             if let Some(val) = file_json.get(property_name) {
+                if let Some(b) = val.as_bool() {
+                    return b.to_string();
+                }
                 if let Some(s) = val.as_str() {
                     return s.to_string();
                 }
