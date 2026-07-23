@@ -363,7 +363,23 @@ async fn test_login_cookie_attributes() {
     };
     let app = create_router(combined_state);
 
+    // Register user first
     let reg_payload = serde_json::json!({
+        "username": "cookie_attr_user",
+        "password": "password123"
+    });
+
+    let _ = app.clone().oneshot(
+        Request::builder()
+            .method("POST")
+            .uri("/api/auth/register")
+            .header("Content-Type", "application/json")
+            .body(axum::body::Body::from(serde_json::to_vec(&reg_payload).unwrap()))
+            .unwrap()
+    ).await.unwrap();
+
+    // Perform login
+    let login_payload = serde_json::json!({
         "username": "cookie_attr_user",
         "password": "password123"
     });
@@ -371,9 +387,9 @@ async fn test_login_cookie_attributes() {
     let resp = app.oneshot(
         Request::builder()
             .method("POST")
-            .uri("/api/auth/register")
+            .uri("/api/auth/login")
             .header("Content-Type", "application/json")
-            .body(axum::body::Body::from(serde_json::to_vec(&reg_payload).unwrap()))
+            .body(axum::body::Body::from(serde_json::to_vec(&login_payload).unwrap()))
             .unwrap()
     ).await.unwrap();
 
@@ -383,4 +399,5 @@ async fn test_login_cookie_attributes() {
     assert!(cookie_header.contains("HttpOnly"));
     assert!(cookie_header.contains("SameSite=Lax"));
     assert!(cookie_header.contains("Path=/"));
+    assert!(!cookie_header.contains("Secure;"), "Secure attribute should not be set when COOKIE_SECURE is false");
 }

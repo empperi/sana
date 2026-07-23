@@ -1,7 +1,6 @@
 use axum::{
     extract::{State, FromRef},
     http::{StatusCode, request::Parts},
-    response::IntoResponse,
     routing::{get, post},
     Json, Router,
     async_trait,
@@ -201,14 +200,17 @@ async fn me(
 async fn logout(
     State(state): State<AppState>,
     jar: SignedCookieJar,
-) -> impl IntoResponse {
+) -> Result<(SignedCookieJar, StatusCode), (StatusCode, Json<ErrorResponse>)> {
     if let Some(cookie) = jar.get("session_id") {
         if let Ok(session_id) = Uuid::parse_str(cookie.value()) {
-            let _ = sessions::end_session(&state, session_id).await;
+            if let Err(e) = sessions::end_session(&state, session_id).await {
+                tracing::warn!("Failed to end session on logout for session {}: {}", session_id, e);
+                return Err(internal_error(e));
+            }
         }
     }
 
     let mut cookie = Cookie::from("session_id");
     cookie.set_path("/");
-    jar.remove(cookie)
+    Ok((jar.remove(cookie), StatusCode::OK))
 }
