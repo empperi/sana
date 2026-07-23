@@ -35,3 +35,4 @@ anyhow = "1.0"
 indoc = "2.0"
 tempfile = "3"
 tower = { version = "0.5", features = ["util"] }
+tokio-tungstenite = "0.24"
