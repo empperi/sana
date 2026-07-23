@@ -23,7 +23,7 @@ services:
       db:
         condition: service_healthy
       nats:
-        condition: service_started
+        condition: service_healthy
     environment:
       - RUST_LOG=sana=debug,tower_http=debug
       - NATS_URL=nats://nats:4222
@@ -35,10 +35,15 @@ services:
       - attachment-data:/app/data/attachments
 
   nats:
-    image: nats:latest
+    image: nats:alpine
     command: ["-js"]
     ports:
       - "4222:4222"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 4222 || exit 1"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
 
   db:
     image: postgres:16-alpine
