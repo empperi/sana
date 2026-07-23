@@ -89,7 +89,7 @@
 
 ---
 
-## Phase 3: Channel authorization service and enforcement
+## Phase 3: Channel authorization service and enforcement [checkpoint: 7411f90]
 
 ### 3.1 Authorization service
 - [x] Task: Write failing tests (`tests/authz_tests.rs`) for `src/logic/authz.rs`: member passes; non-member
@@ -125,7 +125,7 @@
   private. Tests for both.
 
 ### 3.4 Conductor — User Manual Verification 'Phase 3'
-- [ ] Task: Conductor — User Manual Verification 'Phase 3' (Protocol in workflow.md).
+- [x] Task: Conductor — User Manual Verification 'Phase 3' (Protocol in workflow.md).
 
 ---
 
