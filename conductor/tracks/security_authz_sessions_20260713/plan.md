@@ -21,15 +21,15 @@
 ## Phase 1: Session storage (DB + repository + logic)
 
 ### 1.1 Migration
-- [ ] Task: Create a new sqlx migration adding the `sessions` table per spec (id, user_id FK ON DELETE CASCADE,
+- [x] Task: Create a new sqlx migration adding the `sessions` table per spec (id, user_id FK ON DELETE CASCADE,
   created_at, expires_at) and an index on `user_id`. Follow the naming style of existing files in `migrations/`.
 
 ### 1.2 Repository
-- [ ] Task: Write failing tests in `tests/db/sessions_tests.rs` (register in `tests/db/mod.rs`, follow the pattern
+- [x] Task: Write failing tests in `tests/db/sessions_tests.rs` (register in `tests/db/mod.rs`, follow the pattern
   of `tests/db/users_tests.rs` and the helpers in `tests/db/common.rs`) covering: create returns a session with
   the expected user_id and a future expiry; get-by-id returns `None` for unknown ids; get-by-id returns `None`
   for a row whose `expires_at` is in the past; delete removes the row.
-- [ ] Task: Implement `src/db/sessions.rs` (register in `src/db/mod.rs`) with functions taking
+- [x] Task: Implement `src/db/sessions.rs` (register in `src/db/mod.rs`) with functions taking
   `&mut Transaction<'_, Postgres>` like the other repositories: `create_session(tx, user_id, expires_at)`,
   `get_valid_session(tx, session_id) -> Option<Session>` (returns only non-expired rows; delete the row when it
   is found expired), `delete_session(tx, session_id)`.

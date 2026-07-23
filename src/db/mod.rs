@@ -5,6 +5,7 @@ pub mod users;
 pub mod messages;
 pub mod channels;
 pub mod attachments;
+pub mod sessions;
 
 pub async fn connect(config: &Config) -> Result<PgPool, sqlx::Error> {
     PgPoolOptions::new()
