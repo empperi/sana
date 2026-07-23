@@ -60,25 +60,25 @@
   parsed like `max_attachment_size_bytes`. Extend `tests/config_tests.rs`.
 
 ### 2.2 Cookie issuance and attributes
-- [ ] Task: Update `set_session_cookie` in `src/auth.rs`: the value becomes the session id; set `http_only(true)`,
+- [x] Task: Update `set_session_cookie` in `src/auth.rs`: the value becomes the session id; set `http_only(true)`,
   `same_site(SameSite::Lax)`, `path("/")`, and `secure(config.cookie_secure)`. It will need the config — pass it
   in (the handlers can extract `State<CombinedState>`).
-- [ ] Task: `register` and `login` call `logic::sessions::start_session` after their existing DB work and put the
+- [x] Task: `register` and `login` call `logic::sessions::start_session` after their existing DB work and put the
   returned session id in the cookie. `logout` parses the cookie as a session id and calls `end_session`.
   `me` validates via `logic::sessions::validate` and then loads the user.
 
 ### 2.3 Extractor and WS handshake
-- [ ] Task: Update the `UserSession` extractor (`src/auth.rs`) to parse the cookie as a session id and resolve it
+- [x] Task: Update the `UserSession` extractor (`src/auth.rs`) to parse the cookie as a session id and resolve it
   through `logic::sessions::validate`; reject with 401 otherwise.
-- [ ] Task: Update `ws_handler` (`src/ws.rs`) the same way: session id → validate → load user by the returned
+- [x] Task: Update `ws_handler` (`src/ws.rs`) the same way: session id → validate → load user by the returned
   user_id. Keep the existing 401 behaviors for missing/invalid cookie.
 
 ### 2.4 Fix the test fleet
-- [ ] Task: The API/WS test helpers currently sign a raw user id into the cookie. Add a shared helper (e.g. in
+- [x] Task: The API/WS test helpers currently sign a raw user id into the cookie. Add a shared helper (e.g. in
   `tests/db/common.rs` or the existing API-test support code) that creates a user *and* a session row and returns
   the session-id cookie. Update `tests/api_tests.rs`, `tests/ws_tests.rs`, `tests/attachment_api_tests.rs`,
   `tests/channel_messages_api_tests.rs` to use it.
-- [ ] Task: Add integration tests for the new behavior: logout-then-replay yields 401 on `/api/auth/me`; an
+- [x] Task: Add integration tests for the new behavior: logout-then-replay yields 401 on `/api/auth/me`; an
   expired session (insert row with past `expires_at`) yields 401; Set-Cookie header on login contains `HttpOnly`
   and `SameSite=Lax`.
 

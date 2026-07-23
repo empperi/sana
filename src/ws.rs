@@ -9,6 +9,7 @@ use futures::stream::StreamExt;
 use crate::state::AppState;
 use crate::stomp;
 use crate::logic::ws_logic::{self, WsAction, WsContext};
+use crate::logic::sessions;
 use crate::db::users;
 use uuid::Uuid;
 
@@ -24,11 +25,19 @@ pub async fn ws_handler(
             return Err(StatusCode::UNAUTHORIZED);
         }
     };
-    let user_id_str = cookie.value();
-    let user_id = match Uuid::parse_str(user_id_str) {
+    let session_id_str = cookie.value();
+    let session_id = match Uuid::parse_str(session_id_str) {
         Ok(id) => id,
         Err(_) => {
-            tracing::warn!("WebSocket: Invalid user_id in session cookie: {}", user_id_str);
+            tracing::warn!("WebSocket: Invalid session_id in cookie: {}", session_id_str);
+            return Err(StatusCode::UNAUTHORIZED);
+        }
+    };
+
+    let user_id = match sessions::validate(&state, session_id).await {
+        Some(id) => id,
+        None => {
+            tracing::warn!("WebSocket: Invalid or expired session_id: {}", session_id);
             return Err(StatusCode::UNAUTHORIZED);
         }
     };
@@ -37,7 +46,7 @@ pub async fn ws_handler(
     let user = match users::get_user_by_id(&mut tx, user_id).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)? {
         Some(u) => u,
         None => {
-            tracing::warn!("WebSocket: User not found for session user_id: {}", user_id);
+            tracing::warn!("WebSocket: User not found for user_id: {}", user_id);
             return Err(StatusCode::UNAUTHORIZED);
         }
     };

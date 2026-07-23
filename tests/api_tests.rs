@@ -6,9 +6,9 @@ use axum::http::{Request, StatusCode};
 use axum::response::Response;
 use tower::ServiceExt;
 use serde_json::Value;
-use axum_extra::extract::cookie::{Cookie, Key};
+use axum_extra::extract::cookie::Key;
 use uuid::Uuid;
-use chrono::Utc;
+use chrono::{Utc, Duration};
 
 #[path = "db/common.rs"]
 mod common;
@@ -58,13 +58,9 @@ async fn test_get_channels_authorized() {
     let user = db::users::create_user(&mut tx, "api_user", "pass").await.unwrap();
     tx.commit().await.unwrap();
 
-    // 2. Create a signed cookie
-    let cookie = Cookie::new("session_id", user.id.to_string());
-    let signed_jar = axum_extra::extract::cookie::SignedCookieJar::new(key).add(cookie);
-    
-    use axum::response::IntoResponse;
-    let response = signed_jar.into_response();
-    let cookie_header = response.headers().get("Set-Cookie").unwrap().to_str().unwrap().to_string();
+    // 2. Create a session and signed cookie
+    let session_id = common::create_test_session(&ctx.pool, user.id).await;
+    let cookie_header = common::make_session_cookie(&key, session_id);
 
     let response: Response = app
         .oneshot(
@@ -106,10 +102,8 @@ async fn test_search_unjoined_channels() {
     db::channels::insert_channel(&mut tx, &_c1).await.unwrap();
     tx.commit().await.unwrap();
 
-    let cookie = Cookie::new("session_id", user.id.to_string());
-    let signed_jar = axum_extra::extract::cookie::SignedCookieJar::new(key).add(cookie);
-    use axum::response::IntoResponse;
-    let cookie_header = signed_jar.into_response().headers().get("Set-Cookie").unwrap().to_str().unwrap().to_string();
+    let session_id = common::create_test_session(&ctx.pool, user.id).await;
+    let cookie_header = common::make_session_cookie(&key, session_id);
 
     let response = app
         .oneshot(
@@ -151,10 +145,8 @@ async fn test_join_channel_api() {
     db::channels::insert_channel(&mut tx, &c1).await.unwrap();
     tx.commit().await.unwrap();
 
-    let cookie = Cookie::new("session_id", user.id.to_string());
-    let signed_jar = axum_extra::extract::cookie::SignedCookieJar::new(key).add(cookie);
-    use axum::response::IntoResponse;
-    let cookie_header = signed_jar.into_response().headers().get("Set-Cookie").unwrap().to_str().unwrap().to_string();
+    let session_id = common::create_test_session(&ctx.pool, user.id).await;
+    let cookie_header = common::make_session_cookie(&key, session_id);
 
     let join_payload = serde_json::json!({
         "channel_id": c1.id
@@ -200,10 +192,8 @@ async fn test_create_channel_api() {
     let user = db::users::create_user(&mut tx, "creator", "pass").await.unwrap();
     tx.commit().await.unwrap();
 
-    let cookie = Cookie::new("session_id", user.id.to_string());
-    let signed_jar = axum_extra::extract::cookie::SignedCookieJar::new(key).add(cookie);
-    use axum::response::IntoResponse;
-    let cookie_header = signed_jar.into_response().headers().get("Set-Cookie").unwrap().to_str().unwrap().to_string();
+    let session_id = common::create_test_session(&ctx.pool, user.id).await;
+    let cookie_header = common::make_session_cookie(&key, session_id);
 
     let create_payload = serde_json::json!({
         "name": "brand-new-channel"
@@ -252,4 +242,145 @@ async fn test_health_endpoint() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
     assert_eq!(body, "OK");
+}
+
+#[tokio::test]
+async fn test_logout_then_replay_returns_401() {
+    let ctx = TestContext::new("sana_test_logout_replay").await;
+    common::seed_general_channel(&ctx.pool).await;
+    let config = Config::load(None);
+    let nats_client = async_nats::connect(&config.nats_url).await.unwrap();
+    let jetstream = async_nats::jetstream::new(nats_client.clone());
+    let key = Key::generate();
+
+    let app_state = AppState::new(nats_client, jetstream, ctx.pool.clone());
+    let combined_state = CombinedState {
+        app: app_state,
+        cookie_key: key.clone(),
+        config,
+    };
+    let app = create_router(combined_state);
+
+    // Register user
+    let reg_payload = serde_json::json!({
+        "username": "logout_replay_user",
+        "password": "password123"
+    });
+
+    let resp = app.clone().oneshot(
+        Request::builder()
+            .method("POST")
+            .uri("/api/auth/register")
+            .header("Content-Type", "application/json")
+            .body(axum::body::Body::from(serde_json::to_vec(&reg_payload).unwrap()))
+            .unwrap()
+    ).await.unwrap();
+
+    let cookie_header = resp.headers().get("Set-Cookie").unwrap().to_str().unwrap().to_string();
+
+    // Verify /api/auth/me works before logout
+    let me_resp = app.clone().oneshot(
+        Request::builder()
+            .uri("/api/auth/me")
+            .header("Cookie", &cookie_header)
+            .body(axum::body::Body::empty())
+            .unwrap()
+    ).await.unwrap();
+    assert_eq!(me_resp.status(), StatusCode::OK);
+
+    // Call logout
+    let logout_resp = app.clone().oneshot(
+        Request::builder()
+            .method("POST")
+            .uri("/api/auth/logout")
+            .header("Cookie", &cookie_header)
+            .body(axum::body::Body::empty())
+            .unwrap()
+    ).await.unwrap();
+    assert_eq!(logout_resp.status(), StatusCode::OK);
+
+    // Replay old cookie to /api/auth/me — must yield 401
+    let replay_resp = app.clone().oneshot(
+        Request::builder()
+            .uri("/api/auth/me")
+            .header("Cookie", &cookie_header)
+            .body(axum::body::Body::empty())
+            .unwrap()
+    ).await.unwrap();
+    assert_eq!(replay_resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn test_expired_session_returns_401() {
+    let ctx = TestContext::new("sana_test_expired_session_api").await;
+    let config = Config::load(None);
+    let nats_client = async_nats::connect(&config.nats_url).await.unwrap();
+    let jetstream = async_nats::jetstream::new(nats_client.clone());
+    let key = Key::generate();
+
+    let app_state = AppState::new(nats_client, jetstream, ctx.pool.clone());
+    let combined_state = CombinedState {
+        app: app_state,
+        cookie_key: key.clone(),
+        config,
+    };
+    let app = create_router(combined_state);
+
+    // Create user and expired session row directly in DB
+    let mut tx = ctx.pool.begin().await.unwrap();
+    let user = db::users::create_user(&mut tx, "expired_api_user", "pass").await.unwrap();
+    let expired_at = Utc::now() - Duration::hours(2);
+    let session = db::sessions::create_session(&mut tx, user.id, expired_at).await.unwrap();
+    tx.commit().await.unwrap();
+
+    let cookie_header = common::make_session_cookie(&key, session.id);
+
+    let me_resp = app.oneshot(
+        Request::builder()
+            .uri("/api/auth/me")
+            .header("Cookie", cookie_header)
+            .body(axum::body::Body::empty())
+            .unwrap()
+    ).await.unwrap();
+
+    assert_eq!(me_resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn test_login_cookie_attributes() {
+    let ctx = TestContext::new("sana_test_login_cookie_attr").await;
+    common::seed_general_channel(&ctx.pool).await;
+    let config = Config::load(None);
+    let nats_client = async_nats::connect(&config.nats_url).await.unwrap();
+    let jetstream = async_nats::jetstream::new(nats_client.clone());
+    let key = Key::generate();
+
+    let app_state = AppState::new(nats_client, jetstream, ctx.pool.clone());
+    let combined_state = CombinedState {
+        app: app_state,
+        cookie_key: key,
+        config,
+    };
+    let app = create_router(combined_state);
+
+    let reg_payload = serde_json::json!({
+        "username": "cookie_attr_user",
+        "password": "password123"
+    });
+
+    let resp = app.oneshot(
+        Request::builder()
+            .method("POST")
+            .uri("/api/auth/register")
+            .header("Content-Type", "application/json")
+            .body(axum::body::Body::from(serde_json::to_vec(&reg_payload).unwrap()))
+            .unwrap()
+    ).await.unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let cookie_header = resp.headers().get("Set-Cookie").unwrap().to_str().unwrap();
+
+    assert!(cookie_header.contains("HttpOnly"));
+    assert!(cookie_header.contains("SameSite=Lax"));
+    assert!(cookie_header.contains("Path=/"));
 }

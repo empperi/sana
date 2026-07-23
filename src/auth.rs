@@ -7,10 +7,11 @@ use axum::{
     async_trait,
     extract::FromRequestParts,
 };
-use axum_extra::extract::{cookie::{Cookie, Key}, SignedCookieJar};
+use axum_extra::extract::{cookie::{Cookie, Key, SameSite}, SignedCookieJar};
 use serde::{Deserialize, Serialize};
 use crate::state::{AppState, CombinedState};
 use crate::db::users;
+use crate::logic::sessions;
 use bcrypt::{hash, verify, DEFAULT_COST};
 use uuid::Uuid;
 
@@ -32,9 +33,9 @@ where
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
         if let Some(cookie) = jar.get("session_id") {
-            if let Ok(user_id) = Uuid::parse_str(cookie.value()) {
+            if let Ok(session_id) = Uuid::parse_str(cookie.value()) {
                 let app_state = AppState::from_ref(state);
-                if app_state.validate_session(user_id).await {
+                if let Some(user_id) = sessions::validate(&app_state, session_id).await {
                     return Ok(UserSession { user_id });
                 }
             }
@@ -82,14 +83,17 @@ where
     )
 }
 
-fn set_session_cookie(jar: SignedCookieJar, user_id: Uuid) -> SignedCookieJar {
-    let mut cookie = Cookie::new("session_id", user_id.to_string());
+fn set_session_cookie(jar: SignedCookieJar, session_id: Uuid, cookie_secure: bool) -> SignedCookieJar {
+    let mut cookie = Cookie::new("session_id", session_id.to_string());
     cookie.set_path("/");
+    cookie.set_http_only(true);
+    cookie.set_same_site(SameSite::Lax);
+    cookie.set_secure(cookie_secure);
     jar.add(cookie)
 }
 
 async fn register(
-    State(state): State<AppState>,
+    State(state): State<CombinedState>,
     jar: SignedCookieJar,
     Json(payload): Json<AuthPayload>,
 ) -> Result<(SignedCookieJar, Json<AuthResponse>), (StatusCode, Json<ErrorResponse>)> {
@@ -102,7 +106,7 @@ async fn register(
 
     let hashed_password = hash(&payload.password, DEFAULT_COST).map_err(internal_error)?;
 
-    let mut tx = state.db_pool.begin().await.map_err(internal_error)?;
+    let mut tx = state.app.db_pool.begin().await.map_err(internal_error)?;
 
     if let Ok(Some(_)) = users::get_user_by_username(&mut tx, &payload.username).await {
         return Err((
@@ -118,7 +122,8 @@ async fn register(
 
     tx.commit().await.map_err(internal_error)?;
 
-    let updated_jar = set_session_cookie(jar, user.id);
+    let session_id = sessions::start_session(&state.app.db_pool, user.id).await.map_err(internal_error)?;
+    let updated_jar = set_session_cookie(jar, session_id, state.config.cookie_secure);
 
     Ok((
         updated_jar,
@@ -130,11 +135,11 @@ async fn register(
 }
 
 async fn login(
-    State(state): State<AppState>,
+    State(state): State<CombinedState>,
     jar: SignedCookieJar,
     Json(payload): Json<AuthPayload>,
 ) -> Result<(SignedCookieJar, Json<AuthResponse>), (StatusCode, Json<ErrorResponse>)> {
-    let mut tx = state.db_pool.begin().await.map_err(internal_error)?;
+    let mut tx = state.app.db_pool.begin().await.map_err(internal_error)?;
 
     let user = match users::get_user_by_username(&mut tx, &payload.username).await.map_err(internal_error)? {
         Some(u) => u,
@@ -157,7 +162,8 @@ async fn login(
     users::update_last_login(&mut tx, user.id).await.map_err(internal_error)?;
     tx.commit().await.map_err(internal_error)?;
 
-    let updated_jar = set_session_cookie(jar, user.id);
+    let session_id = sessions::start_session(&state.app.db_pool, user.id).await.map_err(internal_error)?;
+    let updated_jar = set_session_cookie(jar, session_id, state.config.cookie_secure);
 
     Ok((
         updated_jar,
@@ -173,10 +179,8 @@ async fn me(
     jar: SignedCookieJar,
 ) -> Result<Json<AuthResponse>, (StatusCode, Json<ErrorResponse>)> {
     if let Some(cookie) = jar.get("session_id") {
-        if let Ok(user_id) = Uuid::parse_str(cookie.value()) {
-            if state.validate_session(user_id).await {
-                // We still need the username for the response, but now this only happens 
-                // for the /me endpoint, not every UserSession extraction
+        if let Ok(session_id) = Uuid::parse_str(cookie.value()) {
+            if let Some(user_id) = sessions::validate(&state, session_id).await {
                 let mut tx = state.db_pool.begin().await.map_err(internal_error)?;
                 if let Ok(Some(user)) = users::get_user_by_id(&mut tx, user_id).await {
                     return Ok(Json(AuthResponse {
@@ -199,8 +203,8 @@ async fn logout(
     jar: SignedCookieJar,
 ) -> impl IntoResponse {
     if let Some(cookie) = jar.get("session_id") {
-        if let Ok(user_id) = Uuid::parse_str(cookie.value()) {
-            state.invalidate_session(user_id);
+        if let Ok(session_id) = Uuid::parse_str(cookie.value()) {
+            let _ = sessions::end_session(&state, session_id).await;
         }
     }
 

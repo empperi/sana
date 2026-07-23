@@ -7,7 +7,7 @@ use axum::http::{Request, StatusCode};
 use axum::response::Response;
 use tower::ServiceExt;
 use serde_json::Value;
-use axum_extra::extract::cookie::{Cookie, Key};
+use axum_extra::extract::cookie::Key;
 use uuid::Uuid;
 
 #[path = "db/common.rs"]
@@ -42,11 +42,9 @@ async fn setup_app(ctx: &TestContext, key: Key) -> (axum::Router, AppState) {
     (create_router(combined_state), app_state)
 }
 
-fn auth_header(user_id: Uuid, key: Key) -> String {
-    let cookie = Cookie::new("session_id", user_id.to_string());
-    let jar = axum_extra::extract::cookie::SignedCookieJar::new(key).add(cookie);
-    use axum::response::IntoResponse;
-    jar.into_response().headers().get("Set-Cookie").unwrap().to_str().unwrap().to_string()
+async fn auth_header(pool: &sqlx::PgPool, user_id: Uuid, key: Key) -> String {
+    let session_id = common::create_test_session(pool, user_id).await;
+    common::make_session_cookie(&key, session_id)
 }
 
 #[tokio::test]
@@ -58,7 +56,7 @@ async fn test_message_persistence_to_db() {
     let user = create_test_user(&ctx.pool, "p_user").await;
     let channel = create_test_channel(&ctx.pool, "p_chan").await;
     join_test_channel(&ctx.pool, user.id, channel.id).await;
-    let cookie = auth_header(user.id, key);
+    let cookie = auth_header(&ctx.pool, user.id, key).await;
 
     // 1. Publish a message to NATS via the logic function
     let subject = format!("topic.{}", sana::nats_util::encode(&channel.name));

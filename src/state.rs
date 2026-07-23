@@ -34,17 +34,6 @@ impl AppState {
         }
     }
 
-    pub async fn validate_session(&self, user_id: Uuid) -> bool {
-        let mut tx = match self.db_pool.begin().await {
-            Ok(tx) => tx,
-            Err(_) => return false,
-        };
-
-        matches!(crate::db::users::get_user_by_id(&mut tx, user_id).await, Ok(Some(_)))
-    }
-
-    pub fn invalidate_session(&self, _user_id: Uuid) {
-    }
 
     pub async fn load_channels_from_db(&self) -> Result<(), sqlx::Error> {
         let channels = crate::db::channels::get_all_channels(&self.db_pool).await?;

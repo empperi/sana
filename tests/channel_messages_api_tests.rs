@@ -1,5 +1,5 @@
 use axum::http::{Request, StatusCode};
-use axum_extra::extract::cookie::{Cookie, Key};
+use axum_extra::extract::cookie::Key;
 use chrono::{DateTime, Duration, Utc};
 use sana::db;
 use sana::router::create_router;
@@ -22,7 +22,8 @@ async fn test_get_messages_success() {
     insert_msg(&ctx, c.id, &u, "M1", Utc::now(), 1).await;
 
     let app = setup_app(&ctx, key.clone()).await;
-    let (status, body) = request(&app, &format!("/api/channels/{}/messages?limit=1", c.id), &auth_header(u.id, key)).await;
+    let auth = auth_header(&ctx.pool, u.id, key).await;
+    let (status, body) = request(&app, &format!("/api/channels/{}/messages?limit=1", c.id), &auth).await;
 
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body[0]["message"], "M1");
@@ -36,7 +37,8 @@ async fn test_get_messages_forbidden() {
     // User DOES NOT join channel
 
     let app = setup_app(&ctx, key.clone()).await;
-    let (status, _) = request(&app, &format!("/api/channels/{}/messages?limit=1", c.id), &auth_header(u.id, key)).await;
+    let auth = auth_header(&ctx.pool, u.id, key).await;
+    let (status, _) = request(&app, &format!("/api/channels/{}/messages?limit=1", c.id), &auth).await;
 
     assert_eq!(status, StatusCode::FORBIDDEN);
 }
@@ -49,7 +51,8 @@ async fn test_get_messages_missing_limit() {
     join_test_channel(&ctx.pool, u.id, c.id).await;
 
     let app = setup_app(&ctx, key.clone()).await;
-    let (status, _) = request(&app, &format!("/api/channels/{}/messages", c.id), &auth_header(u.id, key)).await;
+    let auth = auth_header(&ctx.pool, u.id, key).await;
+    let (status, _) = request(&app, &format!("/api/channels/{}/messages", c.id), &auth).await;
 
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
@@ -65,7 +68,7 @@ async fn test_get_messages_pagination() {
     insert_msg(&ctx, c.id, &u, "M2", now, 2).await;
 
     let app = setup_app(&ctx, key.clone()).await;
-    let auth = auth_header(u.id, key);
+    let auth = auth_header(&ctx.pool, u.id, key).await;
     let (_, body1) = request(&app, &format!("/api/channels/{}/messages?limit=1", c.id), &auth).await;
     let last_ts = body1[0]["timestamp"].as_str().unwrap();
     let last_ts_encoded = last_ts.replace(':', "%3A").replace('+', "%2B");
@@ -81,7 +84,8 @@ async fn test_get_messages_invalid_uuid() {
     let u = create_test_user(&ctx.pool, "u").await;
 
     let app = setup_app(&ctx, key.clone()).await;
-    let (status, _) = request(&app, "/api/channels/invalid/messages?limit=1", &auth_header(u.id, key)).await;
+    let auth = auth_header(&ctx.pool, u.id, key).await;
+    let (status, _) = request(&app, "/api/channels/invalid/messages?limit=1", &auth).await;
 
     assert!(status == StatusCode::BAD_REQUEST || status == StatusCode::NOT_FOUND);
 }
@@ -94,7 +98,8 @@ async fn test_get_messages_limit_too_high() {
     join_test_channel(&ctx.pool, u.id, c.id).await;
 
     let app = setup_app(&ctx, key.clone()).await;
-    let (status, _) = request(&app, &format!("/api/channels/{}/messages?limit=1001", c.id), &auth_header(u.id, key)).await;
+    let auth = auth_header(&ctx.pool, u.id, key).await;
+    let (status, _) = request(&app, &format!("/api/channels/{}/messages?limit=1001", c.id), &auth).await;
 
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
@@ -109,11 +114,9 @@ async fn setup_app(ctx: &TestContext, key: Key) -> axum::Router {
     create_router(CombinedState { app: app_state, cookie_key: key, config })
 }
 
-fn auth_header(user_id: Uuid, key: Key) -> String {
-    let cookie = Cookie::new("session_id", user_id.to_string());
-    let jar = axum_extra::extract::cookie::SignedCookieJar::new(key).add(cookie);
-    use axum::response::IntoResponse;
-    jar.into_response().headers().get("Set-Cookie").unwrap().to_str().unwrap().to_string()
+async fn auth_header(pool: &sqlx::PgPool, user_id: Uuid, key: Key) -> String {
+    let session_id = common::create_test_session(pool, user_id).await;
+    common::make_session_cookie(&key, session_id)
 }
 
 async fn insert_msg(ctx: &TestContext, chan_id: Uuid, user: &db::users::User, text: &str, ts: DateTime<Utc>, seq: u64) {

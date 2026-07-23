@@ -5,7 +5,7 @@ use sana::db;
 use axum::http::{Request, StatusCode};
 use tower::ServiceExt;
 use serde_json::Value;
-use axum_extra::extract::cookie::{Cookie, Key};
+use axum_extra::extract::cookie::Key;
 use uuid::Uuid;
 
 #[path = "db/common.rs"]
@@ -31,11 +31,9 @@ async fn setup_app(ctx: &TestContext, max_size_bytes: Option<u64>) -> (axum::Rou
     (create_router(combined_state), key, config)
 }
 
-fn get_auth_header(user_id: Uuid, key: Key) -> String {
-    let cookie = Cookie::new("session_id", user_id.to_string());
-    let signed_jar = axum_extra::extract::cookie::SignedCookieJar::new(key).add(cookie);
-    use axum::response::IntoResponse;
-    signed_jar.into_response().headers().get("Set-Cookie").unwrap().to_str().unwrap().to_string()
+async fn get_auth_header(pool: &sqlx::PgPool, user_id: Uuid, key: Key) -> String {
+    let session_id = common::create_test_session(pool, user_id).await;
+    common::make_session_cookie(&key, session_id)
 }
 
 #[tokio::test]
@@ -47,7 +45,7 @@ async fn test_upload_attachment_api() {
     let user = db::users::create_user(&mut tx, "uploader", "pass").await.unwrap();
     tx.commit().await.unwrap();
 
-    let auth = get_auth_header(user.id, key);
+    let auth = get_auth_header(&ctx.pool, user.id, key).await;
 
     let boundary = "---------------------------1234567890";
     let body = format!(
@@ -92,7 +90,7 @@ async fn test_download_attachment_api() {
     let user = db::users::create_user(&mut tx, "downloader", "pass").await.unwrap();
     tx.commit().await.unwrap();
 
-    let auth = get_auth_header(user.id, key);
+    let auth = get_auth_header(&ctx.pool, user.id, key).await;
 
     // 1. Manually insert an attachment into DB and create file on disk
     let stored_filename = format!("{}.txt", Uuid::new_v4());
@@ -159,7 +157,7 @@ async fn test_upload_too_large() {
     let user = db::users::create_user(&mut tx, "uploader_large", "pass").await.unwrap();
     tx.commit().await.unwrap();
 
-    let auth = get_auth_header(user.id, key);
+    let auth = get_auth_header(&ctx.pool, user.id, key).await;
 
     let boundary = "---------------------------1234567890";
     let body = format!(
@@ -196,7 +194,7 @@ async fn test_upload_invalid_mime() {
     let user = db::users::create_user(&mut tx, "uploader_mime", "pass").await.unwrap();
     tx.commit().await.unwrap();
 
-    let auth = get_auth_header(user.id, key);
+    let auth = get_auth_header(&ctx.pool, user.id, key).await;
 
     let boundary = "---------------------------1234567890";
     let body = format!(
@@ -233,7 +231,7 @@ async fn test_download_not_found() {
     let user = db::users::create_user(&mut tx, "downloader_404", "pass").await.unwrap();
     tx.commit().await.unwrap();
 
-    let auth = get_auth_header(user.id, key);
+    let auth = get_auth_header(&ctx.pool, user.id, key).await;
 
     let response = app
         .oneshot(
