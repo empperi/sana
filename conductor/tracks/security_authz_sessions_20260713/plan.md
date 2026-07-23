@@ -53,7 +53,7 @@
 
 ---
 
-## Phase 2: Wire sessions into auth endpoints, extractor, and WS handshake
+## Phase 2: Wire sessions into auth endpoints, extractor, and WS handshake [checkpoint: 97979b9]
 
 ### 2.1 Config flag
 - [x] Task: Add `cookie_secure: bool` to `Config` (`src/config.rs`), default `false`, env `COOKIE_SECURE`,
@@ -83,7 +83,7 @@
   and `SameSite=Lax`.
 
 ### 2.5 Conductor — User Manual Verification 'Phase 2'
-- [ ] Task: Conductor — User Manual Verification 'Phase 2' (Protocol in workflow.md). Manual check with two
+- [x] Task: Conductor — User Manual Verification 'Phase 2' (Protocol in workflow.md). Manual check with two
   browser tabs: login, logout, verify the old tab's WS reconnect gets 401 (Network tab) and the app returns to
   the login screen.
 
