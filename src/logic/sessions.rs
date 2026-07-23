@@ -21,6 +21,9 @@ pub async fn validate(state: &AppState, session_id: Uuid) -> Option<Uuid> {
         if Utc::now() - cached_at < Duration::seconds(60) {
             return Some(user_id);
         }
+        // Evict stale entry (> 60s) before DB lookup
+        drop(entry);
+        state.session_cache.remove(&session_id);
     }
 
     // 2. Check DB
@@ -35,7 +38,16 @@ pub async fn validate(state: &AppState, session_id: Uuid) -> Option<Uuid> {
             state.session_cache.insert(session_id, (session.user_id, Utc::now()));
             Some(session.user_id)
         }
-        _ => None,
+        Ok(None) => {
+            // Commit transaction so lazy delete of expired session is persisted
+            let _ = tx.commit().await;
+            state.session_cache.remove(&session_id);
+            None
+        }
+        Err(_) => {
+            state.session_cache.remove(&session_id);
+            None
+        }
     }
 }
 

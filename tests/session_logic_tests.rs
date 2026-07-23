@@ -9,15 +9,6 @@ use common::TestContext;
 use chrono::{Utc, Duration};
 use uuid::Uuid;
 
-async fn setup_app_state(db_name: &str) -> (TestContext, AppState) {
-    let ctx = TestContext::new(db_name).await;
-    let config = Config::new();
-    let nats_client = async_nats::connect(&config.nats_url).await.unwrap();
-    let jetstream = async_nats::jetstream::new(nats_client.clone());
-    let state = AppState::new(nats_client, jetstream, ctx.pool.clone());
-    (ctx, state)
-}
-
 #[tokio::test]
 async fn test_session_lifecycle() {
     let (ctx, state) = setup_app_state("sana_test_session_logic_lifecycle").await;
@@ -76,4 +67,39 @@ async fn test_session_lifetime_constant() {
     let expected_min = before + Duration::days(30) - Duration::seconds(5);
     let expected_max = after + Duration::days(30) + Duration::seconds(5);
     assert!(db_session.expires_at >= expected_min && db_session.expires_at <= expected_max);
+}
+
+#[tokio::test]
+async fn test_validate_lazy_delete_committed() {
+    let (ctx, state) = setup_app_state("sana_test_session_lazy_delete_commit").await;
+    let pool = ctx.pool.clone();
+
+    let mut tx = pool.begin().await.unwrap();
+    let user = users::create_user(&mut tx, "expired_user_lazy", "pass").await.unwrap();
+    let expired_at = Utc::now() - Duration::hours(1);
+    let session = sana::db::sessions::create_session(&mut tx, user.id, expired_at).await.unwrap();
+    tx.commit().await.unwrap();
+
+    // Validating an expired session should return None and commit lazy delete
+    let val_res = sessions::validate(&state, session.id).await;
+    assert_eq!(val_res, None);
+
+    // Verify row was deleted in DB (not rolled back)
+    let mut tx_check = pool.begin().await.unwrap();
+    let raw_row: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM sessions WHERE id = $1")
+        .bind(session.id)
+        .fetch_optional(&mut *tx_check)
+        .await
+        .unwrap();
+    tx_check.commit().await.unwrap();
+    assert!(raw_row.is_none());
+}
+
+async fn setup_app_state(db_name: &str) -> (TestContext, AppState) {
+    let ctx = TestContext::new(db_name).await;
+    let config = Config::new();
+    let nats_client = async_nats::connect(&config.nats_url).await.unwrap();
+    let jetstream = async_nats::jetstream::new(nats_client.clone());
+    let state = AppState::new(nats_client, jetstream, ctx.pool.clone());
+    (ctx, state)
 }
