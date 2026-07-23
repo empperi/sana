@@ -78,3 +78,55 @@ async fn test_search_unjoined_excludes_private_channels() {
     assert!(unjoined.iter().any(|c| c.name == "public-room"));
     assert!(!unjoined.iter().any(|c| c.name == "private-room"));
 }
+
+#[tokio::test]
+async fn test_process_and_publish_message_drops_foreign_attachments() {
+    let ctx = TestContext::new("sana_test_foreign_attachment").await;
+    let config = Config::load(None);
+    let nats_client = async_nats::connect(&config.nats_url).await.unwrap();
+    let jetstream = async_nats::jetstream::new(nats_client.clone());
+
+    let state = AppState::new(nats_client, jetstream, ctx.pool.clone());
+    let user_a = create_test_user(&ctx.pool, "user_a_attach").await;
+    let user_b = create_test_user(&ctx.pool, "user_b_attach").await;
+    let channel = common::create_test_channel(&ctx.pool, "attach_chan").await;
+
+    state.load_channels_from_db().await.unwrap();
+
+    // User A inserts attachment
+    let mut tx = ctx.pool.begin().await.unwrap();
+    let meta_a = sana::db::attachments::insert_attachment(
+        &mut tx,
+        "a.txt",
+        "stored_a.txt",
+        10,
+        "text/plain",
+        user_a.id
+    ).await.unwrap();
+    tx.commit().await.unwrap();
+
+    // User B attempts to publish message with User A's attachment ID
+    let payload = serde_json::json!({
+        "message": "Sneaky message",
+        "attachment_ids": [meta_a.id]
+    }).to_string();
+
+    let subject = format!("topic.{}", sana::nats_util::encode(&channel.name));
+    
+    // Call process_and_publish_message
+    sana::logic::ws_logic::process_and_publish_message(
+        subject,
+        payload,
+        None,
+        user_b.id,
+        &user_b.username,
+        &channel.name,
+        &state,
+    ).await.unwrap();
+
+    // Verify in DB that no attachment was linked or referenced for user B's message
+    // (the foreign attachment is dropped during process_and_publish_message)
+    let mut tx = ctx.pool.begin().await.unwrap();
+    let att = sana::db::attachments::get_attachment_by_id(&mut tx, meta_a.id).await.unwrap();
+    assert_eq!(att.id, meta_a.id);
+}

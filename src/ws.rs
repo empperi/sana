@@ -55,6 +55,29 @@ pub async fn ws_handler(
     Ok(ws.on_upgrade(move |socket| handle_socket(socket, state, user.id, user.username)))
 }
 
+async fn ensure_channel_verified(
+    state: &AppState,
+    user_id: Uuid,
+    channel_name: &str,
+    verified_channels: &mut std::collections::HashSet<String>,
+    tx_internal: &tokio::sync::mpsc::Sender<String>,
+) -> bool {
+    if verified_channels.contains(channel_name) {
+        return true;
+    }
+    match authz::ensure_channel_member_by_name(state, user_id, channel_name).await {
+        Ok(()) => {
+            verified_channels.insert(channel_name.to_string());
+            true
+        }
+        Err(e) => {
+            let error_msg = ws_logic::format_stomp_error(&e.to_string(), None);
+            let _ = tx_internal.send(error_msg).await;
+            false
+        }
+    }
+}
+
 async fn handle_socket(socket: WebSocket, state: AppState, user_id: Uuid, username: String) {
     let (mut sender, mut receiver) = socket.split();
     let (tx_internal, mut rx_internal) = tokio::sync::mpsc::channel::<String>(100);
@@ -88,17 +111,8 @@ async fn handle_socket(socket: WebSocket, state: AppState, user_id: Uuid, userna
                                 let _ = tx_internal.send(response).await;
                             }
                             WsAction::Subscribe(channel_name, last_seen_seq) => {
-                                if !verified_channels.contains(&channel_name) {
-                                    match authz::ensure_channel_member_by_name(&state, user_id, &channel_name).await {
-                                        Ok(()) => {
-                                            verified_channels.insert(channel_name.clone());
-                                        }
-                                        Err(e) => {
-                                            let error_msg = ws_logic::format_stomp_error(&e.to_string(), None);
-                                            let _ = tx_internal.send(error_msg).await;
-                                            continue;
-                                        }
-                                    }
+                                if !ensure_channel_verified(&state, user_id, &channel_name, &mut verified_channels, &tx_internal).await {
+                                    continue;
                                 }
 
                                 if active_subscriptions.insert(channel_name.clone()) {
@@ -108,17 +122,8 @@ async fn handle_socket(socket: WebSocket, state: AppState, user_id: Uuid, userna
                                 }
                             }
                             WsAction::PublishToNats(subject, body, message_id, channel_name) => {
-                                 if !verified_channels.contains(&channel_name) {
-                                     match authz::ensure_channel_member_by_name(&state, user_id, &channel_name).await {
-                                         Ok(()) => {
-                                             verified_channels.insert(channel_name.clone());
-                                         }
-                                         Err(e) => {
-                                             let error_msg = ws_logic::format_stomp_error(&e.to_string(), None);
-                                             let _ = tx_internal.send(error_msg).await;
-                                             continue;
-                                         }
-                                     }
+                                 if !ensure_channel_verified(&state, user_id, &channel_name, &mut verified_channels, &tx_internal).await {
+                                     continue;
                                  }
 
                                  if let Err(e) = ws_logic::process_and_publish_message(subject, body, message_id, ctx.user_id, &ctx.username, &channel_name, &state).await {
@@ -127,17 +132,8 @@ async fn handle_socket(socket: WebSocket, state: AppState, user_id: Uuid, userna
                                  }
                             }
                             WsAction::PublishReadMarker(channel_name, message_id) => {
-                                if !verified_channels.contains(&channel_name) {
-                                    match authz::ensure_channel_member_by_name(&state, user_id, &channel_name).await {
-                                        Ok(()) => {
-                                            verified_channels.insert(channel_name.clone());
-                                        }
-                                        Err(e) => {
-                                            let error_msg = ws_logic::format_stomp_error(&e.to_string(), None);
-                                            let _ = tx_internal.send(error_msg).await;
-                                            continue;
-                                        }
-                                    }
+                                if !ensure_channel_verified(&state, user_id, &channel_name, &mut verified_channels, &tx_internal).await {
+                                    continue;
                                 }
 
                                 if let Err(e) = ws_logic::publish_read_marker(&channel_name, user_id, message_id, &state).await {

@@ -61,8 +61,9 @@ pub async fn ensure_channel_member_by_name(
         return Ok(());
     }
 
-    if let Some(channel_id) = state.channel_ids.get(channel_name) {
-        return ensure_channel_member(&state.db_pool, user_id, *channel_id).await;
+    let cached_id = state.channel_ids.get(channel_name).map(|r| *r.value());
+    if let Some(channel_id) = cached_id {
+        return ensure_channel_member(&state.db_pool, user_id, channel_id).await;
     }
 
     // Fallback to DB lookup if not in state cache

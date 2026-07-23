@@ -2,7 +2,6 @@ use std::path::PathBuf;
 use uuid::Uuid;
 use bytes::Bytes;
 use sqlx::PgPool;
-use sqlx::Row;
 use crate::config::Config;
 use crate::messages::AttachmentMeta;
 use crate::db::attachments;
@@ -112,49 +111,32 @@ pub async fn get_attachment_for_download(
     attachment_id: Uuid,
 ) -> Result<(AttachmentMeta, PathBuf), AppError> {
     let mut tx = pool.begin().await.map_err(|e| AppError::Internal(e.to_string()))?;
-    
-    let row = sqlx::query(
-        "SELECT a.id, a.original_filename, a.stored_filename, a.file_size, a.mime_type, a.message_id, a.uploaded_by, m.channel_id
-         FROM attachments a
-         LEFT JOIN messages m ON a.message_id = m.id
-         WHERE a.id = $1"
-    )
-    .bind(attachment_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|e| AppError::Internal(e.to_string()))?;
-
-    let row = match row {
-        Some(r) => r,
-        None => return Err(AppError::NotFound("Attachment not found".to_string())),
-    };
-
-    let meta = AttachmentMeta {
-        id: row.get("id"),
-        original_filename: row.get("original_filename"),
-        file_size: row.get("file_size"),
-        mime_type: row.get("mime_type"),
-    };
-    let stored_filename: String = row.get("stored_filename");
-    let message_id: Option<Uuid> = row.get("message_id");
-    let uploaded_by: Uuid = row.get("uploaded_by");
-    let channel_id: Option<Uuid> = row.get("channel_id");
+    let info = attachments::get_attachment_download_info(&mut tx, attachment_id)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?
+        .ok_or_else(|| AppError::NotFound("Attachment not found".to_string()))?;
 
     tx.commit().await.map_err(|e| AppError::Internal(e.to_string()))?;
 
-    if message_id.is_some() {
-        if let Some(chan_id) = channel_id {
+    if info.message_id.is_some() {
+        if let Some(chan_id) = info.channel_id {
             match crate::logic::authz::ensure_channel_member(pool, requester_id, chan_id).await {
                 Ok(()) => {},
-                Err(_) => return Err(AppError::Forbidden("Not authorized to access attachment".to_string())),
+                Err(crate::logic::authz::AuthzError::NotAMember) |
+                Err(crate::logic::authz::AuthzError::ChannelNotFound) => {
+                    return Err(AppError::Forbidden("Not authorized to access attachment".to_string()));
+                }
+                Err(crate::logic::authz::AuthzError::DbError(msg)) => {
+                    return Err(AppError::Internal(msg));
+                }
             }
         } else {
             return Err(AppError::Forbidden("Not authorized to access attachment".to_string()));
         }
-    } else if uploaded_by != requester_id {
+    } else if info.uploaded_by != requester_id {
         return Err(AppError::Forbidden("Not authorized to access attachment".to_string()));
     }
 
-    let file_path = PathBuf::from(&config.attachment_storage_dir).join(stored_filename);
-    Ok((meta, file_path))
+    let file_path = PathBuf::from(&config.attachment_storage_dir).join(info.stored_filename);
+    Ok((info.meta, file_path))
 }
