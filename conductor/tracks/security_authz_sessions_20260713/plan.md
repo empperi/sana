@@ -18,7 +18,7 @@
 
 ---
 
-## Phase 1: Session storage (DB + repository + logic)
+## Phase 1: Session storage (DB + repository + logic) [checkpoint: 77ce09d]
 
 ### 1.1 Migration
 - [x] Task: Create a new sqlx migration adding the `sessions` table per spec (id, user_id FK ON DELETE CASCADE,
@@ -48,7 +48,7 @@
   `invalidate_session` are removed or reduced to thin delegating wrappers (prefer removal — update callers).
 
 ### 1.4 Conductor — User Manual Verification 'Phase 1'
-- [ ] Task: Conductor — User Manual Verification 'Phase 1' (Protocol in workflow.md). `cargo test` green,
+- [x] Task: Conductor — User Manual Verification 'Phase 1' (Protocol in workflow.md). `cargo test` green,
   `cargo clippy -- -D warnings` clean.
 
 ---
