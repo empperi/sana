@@ -129,14 +129,14 @@
 
 ---
 
-## Phase 4: Full verification
+## Phase 4: Full verification [checkpoint: 27b0db5]
 
-- [ ] Task: Run the complete backend suite (`cargo test`), clippy with zero warnings, frontend build
+- [x] Task: Run the complete backend suite (`cargo test`), clippy with zero warnings, frontend build
   (`cd frontend; trunk build`), frontend tests.
-- [ ] Task: Start the E2E stack (`docker compose -f docker-compose.e2e.yml --project-name sana-e2e up --build
+- [x] Task: Start the E2E stack (`docker compose -f docker-compose.e2e.yml --project-name sana-e2e up --build
   --wait`) and run the full Playwright suite (`cd e2e; npx playwright test --reporter=list`). The suite exercises
   login/register/messaging across 2 replicas — all tests must pass unmodified except where they assert on cookie
   internals.
-- [ ] Task: Add one happy-path E2E assertion to `e2e/tests/auth.spec.ts`: after logout, navigating to the app
+- [x] Task: Add one happy-path E2E assertion to `e2e/tests/auth.spec.ts`: after logout, navigating to the app
   lands on the login view (if not already covered).
-- [ ] Task: Conductor — User Manual Verification 'Phase 4' (Protocol in workflow.md).
+- [x] Task: Conductor — User Manual Verification 'Phase 4' (Protocol in workflow.md).
