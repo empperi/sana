@@ -52,6 +52,29 @@ pub async fn get_attachment_by_id(
     })
 }
 
+pub async fn get_attachment_by_id_and_uploader(
+    tx: &mut Transaction<'_, Postgres>,
+    id: Uuid,
+    uploaded_by: Uuid,
+) -> Result<Option<AttachmentMeta>, sqlx::Error> {
+    let row = sqlx::query(
+        "SELECT id, original_filename, file_size, mime_type 
+         FROM attachments 
+         WHERE id = $1 AND uploaded_by = $2"
+    )
+    .bind(id)
+    .bind(uploaded_by)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    Ok(row.map(|r| AttachmentMeta {
+        id: r.get("id"),
+        original_filename: r.get("original_filename"),
+        file_size: r.get("file_size"),
+        mime_type: r.get("mime_type"),
+    }))
+}
+
 pub async fn get_attachments_by_message_id(
     tx: &mut Transaction<'_, Postgres>,
     message_id: Uuid,

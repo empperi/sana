@@ -10,6 +10,7 @@ use crate::state::AppState;
 use crate::stomp;
 use crate::logic::ws_logic::{self, WsAction, WsContext};
 use crate::logic::sessions;
+use crate::logic::authz;
 use crate::db::users;
 use uuid::Uuid;
 
@@ -72,6 +73,7 @@ async fn handle_socket(socket: WebSocket, state: AppState, user_id: Uuid, userna
     });
 
     let mut active_subscriptions = std::collections::HashSet::new();
+    let mut verified_channels = std::collections::HashSet::new();
 
     while let Some(msg) = receiver.next().await {
         if let Ok(msg) = msg {
@@ -86,6 +88,19 @@ async fn handle_socket(socket: WebSocket, state: AppState, user_id: Uuid, userna
                                 let _ = tx_internal.send(response).await;
                             }
                             WsAction::Subscribe(channel_name, last_seen_seq) => {
+                                if !verified_channels.contains(&channel_name) {
+                                    match authz::ensure_channel_member_by_name(&state, user_id, &channel_name).await {
+                                        Ok(()) => {
+                                            verified_channels.insert(channel_name.clone());
+                                        }
+                                        Err(e) => {
+                                            let error_msg = ws_logic::format_stomp_error(&e.to_string(), None);
+                                            let _ = tx_internal.send(error_msg).await;
+                                            continue;
+                                        }
+                                    }
+                                }
+
                                 if active_subscriptions.insert(channel_name.clone()) {
                                     ws_logic::handle_subscribe(channel_name, last_seen_seq, user_id, &state, &tx_internal).await;
                                 } else {
@@ -93,12 +108,38 @@ async fn handle_socket(socket: WebSocket, state: AppState, user_id: Uuid, userna
                                 }
                             }
                             WsAction::PublishToNats(subject, body, message_id, channel_name) => {
+                                 if !verified_channels.contains(&channel_name) {
+                                     match authz::ensure_channel_member_by_name(&state, user_id, &channel_name).await {
+                                         Ok(()) => {
+                                             verified_channels.insert(channel_name.clone());
+                                         }
+                                         Err(e) => {
+                                             let error_msg = ws_logic::format_stomp_error(&e.to_string(), None);
+                                             let _ = tx_internal.send(error_msg).await;
+                                             continue;
+                                         }
+                                     }
+                                 }
+
                                  if let Err(e) = ws_logic::process_and_publish_message(subject, body, message_id, ctx.user_id, &ctx.username, &channel_name, &state).await {
                                      let error_msg = ws_logic::format_stomp_error(&e.to_string(), None);
                                      let _ = tx_internal.send(error_msg).await;
                                  }
                             }
                             WsAction::PublishReadMarker(channel_name, message_id) => {
+                                if !verified_channels.contains(&channel_name) {
+                                    match authz::ensure_channel_member_by_name(&state, user_id, &channel_name).await {
+                                        Ok(()) => {
+                                            verified_channels.insert(channel_name.clone());
+                                        }
+                                        Err(e) => {
+                                            let error_msg = ws_logic::format_stomp_error(&e.to_string(), None);
+                                            let _ = tx_internal.send(error_msg).await;
+                                            continue;
+                                        }
+                                    }
+                                }
+
                                 if let Err(e) = ws_logic::publish_read_marker(&channel_name, user_id, message_id, &state).await {
                                     let error_msg = ws_logic::format_stomp_error(&e.to_string(), None);
                                     let _ = tx_internal.send(error_msg).await;

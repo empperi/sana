@@ -294,9 +294,9 @@ pub async fn process_and_publish_message(
                 let mut tx = state.db_pool.begin().await
                     .map_err(|e| WsError::DatabaseError(e.to_string()))?;
                 
-                // Fetch metas for these IDs (read-only)
+                // Fetch metas for these IDs (read-only, ensuring uploader matches sender)
                 for att_id in ids {
-                    if let Ok(meta) = crate::db::attachments::get_attachment_by_id(&mut tx, att_id).await {
+                    if let Ok(Some(meta)) = crate::db::attachments::get_attachment_by_id_and_uploader(&mut tx, att_id, user_id).await {
                         metas.push(meta);
                     }
                 }

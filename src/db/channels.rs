@@ -134,6 +134,7 @@ pub async fn search_unjoined_channels(
         "SELECT id, name, is_private, created_at 
          FROM channels 
          WHERE id NOT IN (SELECT channel_id FROM user_channels WHERE user_id = $1)
+         AND is_private = FALSE
          AND name ILIKE $2
          ORDER BY name ASC
          LIMIT $3"

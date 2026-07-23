@@ -118,6 +118,10 @@ async fn join_channel(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::NOT_FOUND)?;
 
+    if channel.is_private {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
     // 2. Perform join in DB
     channels::join_channel(&mut tx, session.user_id, payload.channel_id).await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -158,19 +162,14 @@ async fn get_channel_messages(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    let mut tx = state.db_pool.begin().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
-    // Check membership
-    let is_member = channels::is_channel_member(&mut tx, session.user_id, channel_id).await
-        .map_err(|e| {
-            tracing::error!("Failed to check channel membership: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-
-    if !is_member {
-        return Err(StatusCode::FORBIDDEN);
+    match crate::logic::authz::ensure_channel_member(&state.db_pool, session.user_id, channel_id).await {
+        Ok(()) => {},
+        Err(crate::logic::authz::AuthzError::NotAMember) => return Err(StatusCode::FORBIDDEN),
+        Err(crate::logic::authz::AuthzError::ChannelNotFound) => return Err(StatusCode::NOT_FOUND),
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 
+    let mut tx = state.db_pool.begin().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let messages = crate::db::messages::get_messages(&mut tx, channel_id, query.limit, query.before, false)
         .await
         .map_err(|e| {

@@ -102,25 +102,25 @@
   and internal errors.
 
 ### 3.2 WebSocket enforcement
-- [ ] Task: In `src/ws.rs::handle_socket`, before executing `WsAction::Subscribe`, `WsAction::PublishToNats`, and
+- [x] Task: In `src/ws.rs::handle_socket`, before executing `WsAction::Subscribe`, `WsAction::PublishToNats`, and
   `WsAction::PublishReadMarker`, check membership via the authz service. Maintain a per-connection
   `HashSet<String>` of already-verified channel names (alongside the existing `active_subscriptions`) so repeated
   sends don't re-query. On failure, send a STOMP `ERROR` frame via the existing `format_stomp_error` and skip the
   action. `system.channels` bypasses the check.
-- [ ] Task: Integration tests in `tests/ws_tests.rs`: non-member SUBSCRIBE gets ERROR and no MESSAGE frames;
+- [x] Task: Integration tests in `tests/ws_tests.rs`: non-member SUBSCRIBE gets ERROR and no MESSAGE frames;
   non-member SEND gets ERROR and the message is absent from the DB afterwards; member flows unchanged.
 
 ### 3.3 REST + attachment enforcement
-- [ ] Task: Switch `get_channel_messages` (`src/channels.rs`) to the shared authz function (403 on `NotAMember`).
-- [ ] Task: Attachment download authorization: extend the attachment lookup in `src/logic/attachments.rs` to also
+- [x] Task: Switch `get_channel_messages` (`src/channels.rs`) to the shared authz function (403 on `NotAMember`).
+- [x] Task: Attachment download authorization: extend the attachment lookup in `src/logic/attachments.rs` to also
   return `message_id` and `uploaded_by` (query in `src/db/attachments.rs`); in `get_attachment_for_download`,
   apply the spec rule (linked → member of the message's channel, which requires resolving the message's
   channel_id; unlinked → uploader only). Return `AppError::NotFound` for unauthorized access (don't reveal
   existence) or add a `Forbidden` variant — pick one and test it. Tests in `tests/attachment_api_tests.rs`.
-- [ ] Task: In `ws_logic::process_and_publish_message`, when resolving `attachment_ids`, filter to attachments
+- [x] Task: In `ws_logic::process_and_publish_message`, when resolving `attachment_ids`, filter to attachments
   whose `uploaded_by` equals the sender (adjust the fetch query); foreign ids are dropped silently. Unit-testable
   via the existing message-persistence integration tests.
-- [ ] Task: Private-channel guards: add `AND is_private = FALSE` to `search_unjoined_channels`
+- [x] Task: Private-channel guards: add `AND is_private = FALSE` to `search_unjoined_channels`
   (`src/db/channels.rs`); `join_channel` handler (`src/channels.rs`) returns 403 when the target channel is
   private. Tests for both.
 

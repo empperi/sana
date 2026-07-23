@@ -264,3 +264,114 @@ async fn test_download_unauthorized() {
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
+
+#[tokio::test]
+async fn test_download_unlinked_attachment_forbidden_for_other_user() {
+    let ctx = TestContext::new("api_download_unlinked_forbidden").await;
+    let (app, key, config) = setup_app(&ctx, None).await;
+
+    let mut tx = ctx.pool.begin().await.unwrap();
+    let uploader = db::users::create_user(&mut tx, "uploader_unlinked", "pass").await.unwrap();
+    let other_user = db::users::create_user(&mut tx, "other_unlinked", "pass").await.unwrap();
+    tx.commit().await.unwrap();
+
+    let other_auth = get_auth_header(&ctx.pool, other_user.id, key).await;
+
+    let stored_filename = format!("{}.txt", Uuid::new_v4());
+    let file_path = std::path::PathBuf::from(&config.attachment_storage_dir).join(&stored_filename);
+    std::fs::write(&file_path, "unlinked file data").unwrap();
+
+    let mut tx = ctx.pool.begin().await.unwrap();
+    let meta = db::attachments::insert_attachment(
+        &mut tx,
+        "unlinked.txt",
+        &stored_filename,
+        18,
+        "text/plain",
+        uploader.id
+    ).await.unwrap();
+    tx.commit().await.unwrap();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/attachments/{}", meta.id))
+                .header("Cookie", other_auth)
+                .body(axum::body::Body::empty())
+                .unwrap()
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn test_download_linked_attachment_channel_membership() {
+    let ctx = TestContext::new("api_download_linked_authz").await;
+    let (app, key, config) = setup_app(&ctx, None).await;
+
+    let member_user = common::create_test_user(&ctx.pool, "chan_member").await;
+    let non_member_user = common::create_test_user(&ctx.pool, "chan_non_member").await;
+    let channel = common::create_test_channel(&ctx.pool, "linked_chan").await;
+    common::join_test_channel(&ctx.pool, member_user.id, channel.id).await;
+
+    let member_auth = get_auth_header(&ctx.pool, member_user.id, key.clone()).await;
+    let non_member_auth = get_auth_header(&ctx.pool, non_member_user.id, key).await;
+
+    let stored_filename = format!("{}.txt", Uuid::new_v4());
+    let file_path = std::path::PathBuf::from(&config.attachment_storage_dir).join(&stored_filename);
+    std::fs::write(&file_path, "linked file data").unwrap();
+
+    let mut tx = ctx.pool.begin().await.unwrap();
+    let meta = db::attachments::insert_attachment(
+        &mut tx,
+        "linked.txt",
+        &stored_filename,
+        16,
+        "text/plain",
+        member_user.id
+    ).await.unwrap();
+
+    let msg_id = Uuid::new_v4();
+    let msg = sana::messages::ChatMessage {
+        id: msg_id,
+        channel_id: channel.id,
+        user_id: member_user.id,
+        user: member_user.username.clone(),
+        timestamp: chrono::Utc::now(),
+        message: "Check attachment".to_string(),
+        seq: Some(1),
+        msg_type: sana::messages::MessageType::Chat,
+        attachments: vec![],
+    };
+    db::messages::insert_message(&mut tx, 1, &msg).await.unwrap();
+    db::attachments::link_attachments_to_message(&mut tx, &[meta.id], msg_id, member_user.id).await.unwrap();
+    tx.commit().await.unwrap();
+
+    // Member gets 200 OK
+    let member_resp = app.clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/attachments/{}", meta.id))
+                .header("Cookie", member_auth)
+                .body(axum::body::Body::empty())
+                .unwrap()
+        )
+        .await
+        .unwrap();
+    assert_eq!(member_resp.status(), StatusCode::OK);
+
+    // Non-member gets 403 FORBIDDEN
+    let non_member_resp = app
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/attachments/{}", meta.id))
+                .header("Cookie", non_member_auth)
+                .body(axum::body::Body::empty())
+                .unwrap()
+        )
+        .await
+        .unwrap();
+    assert_eq!(non_member_resp.status(), StatusCode::FORBIDDEN);
+}
